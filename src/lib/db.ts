@@ -99,6 +99,10 @@ export async function nextDocumentNumber(
     create: { tenantId, docType, prefix: defaults[docType], next: 2 },
     update: { next: { increment: 1 } },
   });
-  const n = seq.next - 1;
-  return `${seq.prefix}${String(n).padStart(4, '0')}`;
+  return formatDocumentNumber(seq.prefix, seq.next - 1);
+}
+
+/** "INV-" + 458 → "INV-0458". */
+export function formatDocumentNumber(prefix: string, n: number): string {
+  return `${prefix}${String(n).padStart(4, '0')}`;
 }

@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { requireRole } from '@/lib/auth/session';
 import { BusinessSettingsForm } from '@/components/settings/BusinessSettingsForm';
+import { getInvoiceNumbering } from '@/lib/invoices/numbering';
 
 export default async function BusinessSettingsPage() {
   const { tenant } = await requireRole(['OWNER', 'ADMIN']);
+  const numbering = await getInvoiceNumbering(tenant.id);
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
@@ -34,7 +36,10 @@ export default async function BusinessSettingsPage() {
             bankBranchCode: tenant.bankBranchCode,
             quoteTerms: tenant.quoteTerms,
             defaultQuoteValidDays: tenant.defaultQuoteValidDays,
+            invoiceTerms: tenant.invoiceTerms,
+            defaultPaymentTermsDays: tenant.defaultPaymentTermsDays,
           }}
+          invoiceNumbering={numbering}
         />
       </div>
     </div>

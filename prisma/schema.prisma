@@ -74,6 +74,10 @@ model Tenant {
   quoteTerms            String?
   defaultQuoteValidDays Int     @default(30)
 
+  // Printed on every invoice
+  invoiceTerms            String?
+  defaultPaymentTermsDays Int     @default(7) // 0 = due on receipt
+
   plan               PlanTier           @default(FREE_SOLO)
   subscriptionStatus SubscriptionStatus @default(TRIALING)
   trialEndsAt        DateTime?
@@ -559,7 +563,9 @@ model Invoice {
   id               String        @id @default(uuid())
   tenantId         String
   tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  number           String // "INV-0001" — sequential, no gaps, never reused
+  // "INV-0001" — allocated when issued (drafts have none), so deleted drafts
+  // never leave a gap. Sequential, never reused.
+  number           String?
   kind             InvoiceKind   @default(INVOICE)
   clientId         String
   client           Client        @relation(fields: [clientId], references: [id])
@@ -576,8 +582,10 @@ model Invoice {
   totalCents    Int @default(0)
   paidCents     Int @default(0)
 
-  // Snapshot of seller details at issue time (tax invoices must not change later)
+  // Seller and client details frozen at issue time (tax invoices must not change later)
   sellerSnapshot Json?
+  buyerSnapshot  Json?
+  notes          String?
   publicToken    String @unique @default(uuid()) // client pay/view link
 
   createdAt DateTime @default(now())

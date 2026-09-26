@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react';
 import { Checkbox, Field, FormMessage, SubmitButton, TextArea } from '@/components/auth/ui';
 import { updateBusinessSettingsAction, type FormState } from '@/lib/settings/actions';
+import type { InvoiceNumbering } from '@/lib/invoices/numbering';
 
 export type BusinessDefaults = {
   businessName: string;
@@ -24,6 +25,8 @@ export type BusinessDefaults = {
   bankBranchCode: string | null;
   quoteTerms: string | null;
   defaultQuoteValidDays: number;
+  invoiceTerms: string | null;
+  defaultPaymentTermsDays: number;
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -35,9 +38,18 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export function BusinessSettingsForm({ tenant }: { tenant: BusinessDefaults }) {
+export function BusinessSettingsForm({
+  tenant,
+  invoiceNumbering,
+}: {
+  tenant: BusinessDefaults;
+  invoiceNumbering: InvoiceNumbering;
+}) {
   const [state, action, pending] = useActionState<FormState, FormData>(updateBusinessSettingsAction, undefined);
   const [vatRegistered, setVatRegistered] = useState(tenant.vatRegistered);
+  const [prefix, setPrefix] = useState(invoiceNumbering.prefix);
+  const [nextNumber, setNextNumber] = useState(String(invoiceNumbering.next));
+  const previewNumber = /^\d+$/.test(nextNumber) ? `${prefix.trim()}${nextNumber.padStart(4, '0')}` : '—';
   const e = state?.fieldErrors;
 
   return (
@@ -143,6 +155,58 @@ export function BusinessSettingsForm({ tenant }: { tenant: BusinessDefaults }) {
           defaultValue={tenant.defaultQuoteValidDays}
           errors={e?.defaultQuoteValidDays}
         />
+      </Section>
+
+      <Section title="Invoices">
+        <Field
+          label="Payment due after (days)"
+          name="defaultPaymentTermsDays"
+          type="number"
+          min={0}
+          max={365}
+          defaultValue={tenant.defaultPaymentTermsDays}
+          errors={e?.defaultPaymentTermsDays}
+          hint="0 means payment is due on receipt."
+        />
+        <TextArea
+          label="Standard terms (printed on every invoice)"
+          name="invoiceTerms"
+          defaultValue={tenant.invoiceTerms ?? ''}
+          errors={e?.invoiceTerms}
+        />
+        {invoiceNumbering.locked ? (
+          <p className="text-sm text-slate-400">
+            Invoice numbering: <span className="text-slate-200">{invoiceNumbering.prefix}…</span>, next number{' '}
+            <span className="text-slate-200">{invoiceNumbering.next}</span>. Locked because invoices have been issued, so
+            the sequence can’t be broken.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-x-3">
+              <Field
+                label="Number prefix"
+                name="invoicePrefix"
+                value={prefix}
+                onChange={(ev) => setPrefix(ev.target.value)}
+                maxLength={10}
+                errors={e?.invoicePrefix}
+              />
+              <Field
+                label="Next invoice number"
+                name="invoiceNextNumber"
+                type="number"
+                min={1}
+                value={nextNumber}
+                onChange={(ev) => setNextNumber(ev.target.value)}
+                errors={e?.invoiceNextNumber}
+              />
+            </div>
+            <p className="-mt-2 mb-2 text-xs text-slate-500">
+              Your first invoice will be <span className="text-slate-300">{previewNumber}</span>. Moving from another
+              system? Continue from your last number. This locks once your first invoice is issued.
+            </p>
+          </>
+        )}
       </Section>
 
       <SubmitButton pending={pending}>Save settings</SubmitButton>

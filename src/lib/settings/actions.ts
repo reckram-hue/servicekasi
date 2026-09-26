@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireRole } from '@/lib/auth/session';
 import { isValidCipcRegNumber, isValidSarsVatNumber } from '@/lib/southAfrica';
+import { INVOICE_PREFIX_RE, MAX_INVOICE_NUMBER, setInvoiceNumbering } from '@/lib/invoices/numbering';
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string[] | undefined>; ok?: string } | undefined;
 
@@ -31,6 +32,25 @@ const BusinessSettingsSchema = z
     bankBranchCode: optionalText(10),
     quoteTerms: optionalText(4000),
     defaultQuoteValidDays: z.coerce.number().int().min(1).max(365).default(30),
+    invoiceTerms: optionalText(4000),
+    defaultPaymentTermsDays: z.coerce
+      .number({ error: 'Enter a number of days.' })
+      .int({ error: 'Enter a whole number of days.' })
+      .min(0)
+      .max(365, { error: 'Use 365 days or fewer.' })
+      .default(7),
+    // Only sent while numbering is still editable (no invoice issued yet).
+    invoicePrefix: z
+      .string()
+      .trim()
+      .regex(INVOICE_PREFIX_RE, { error: 'Use up to 10 letters, numbers, "-" or "/".' })
+      .optional(),
+    invoiceNextNumber: z.coerce
+      .number({ error: 'Enter a number.' })
+      .int({ error: 'Enter a whole number.' })
+      .min(1, { error: 'Start from 1 or higher.' })
+      .max(MAX_INVOICE_NUMBER, { error: 'That number is too large.' })
+      .optional(),
   })
   .transform((d) => ({ ...d, vatRegistered: d.vatRegistered === 'on' }))
   .refine((d) => !d.vatRegistered || (d.vatNumber && isValidSarsVatNumber(d.vatNumber)), {
@@ -48,30 +68,40 @@ export async function updateBusinessSettingsAction(_: FormState, formData: FormD
   if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
   const d = parsed.data;
 
-  await prisma.tenant.update({
-    where: { id: tenant.id },
-    data: {
-      businessName: d.businessName,
-      tradingName: d.tradingName ?? null,
-      vatRegistered: d.vatRegistered,
-      vatNumber: d.vatRegistered ? d.vatNumber : null,
-      defaultTaxRateBp: d.vatRegistered ? Math.round(d.vatRatePercent * 100) : 0,
-      companyRegNumber: d.companyRegNumber ?? null,
-      phone: d.phone ?? null,
-      email: d.email || null,
-      addressLine1: d.addressLine1 ?? null,
-      addressLine2: d.addressLine2 ?? null,
-      city: d.city ?? null,
-      region: d.region ?? null,
-      postalCode: d.postalCode ?? null,
-      bankName: d.bankName ?? null,
-      bankAccountHolder: d.bankAccountHolder ?? null,
-      bankAccountNumber: d.bankAccountNumber ?? null,
-      bankBranchCode: d.bankBranchCode ?? null,
-      quoteTerms: d.quoteTerms ?? null,
-      defaultQuoteValidDays: d.defaultQuoteValidDays,
-    },
+  const numberingError = await prisma.$transaction(async (tx) => {
+    if (d.invoicePrefix !== undefined && d.invoiceNextNumber !== undefined) {
+      const result = await setInvoiceNumbering(tx, tenant.id, d.invoicePrefix, d.invoiceNextNumber);
+      if (result) return result.error;
+    }
+    await tx.tenant.update({
+      where: { id: tenant.id },
+      data: {
+        businessName: d.businessName,
+        tradingName: d.tradingName ?? null,
+        vatRegistered: d.vatRegistered,
+        vatNumber: d.vatRegistered ? d.vatNumber : null,
+        defaultTaxRateBp: d.vatRegistered ? Math.round(d.vatRatePercent * 100) : 0,
+        companyRegNumber: d.companyRegNumber ?? null,
+        phone: d.phone ?? null,
+        email: d.email || null,
+        addressLine1: d.addressLine1 ?? null,
+        addressLine2: d.addressLine2 ?? null,
+        city: d.city ?? null,
+        region: d.region ?? null,
+        postalCode: d.postalCode ?? null,
+        bankName: d.bankName ?? null,
+        bankAccountHolder: d.bankAccountHolder ?? null,
+        bankAccountNumber: d.bankAccountNumber ?? null,
+        bankBranchCode: d.bankBranchCode ?? null,
+        quoteTerms: d.quoteTerms ?? null,
+        defaultQuoteValidDays: d.defaultQuoteValidDays,
+        invoiceTerms: d.invoiceTerms ?? null,
+        defaultPaymentTermsDays: d.defaultPaymentTermsDays,
+      },
+    });
+    return null;
   });
+  if (numberingError) return { error: numberingError };
 
   revalidatePath('/settings/business');
   return { ok: 'Saved.' };
