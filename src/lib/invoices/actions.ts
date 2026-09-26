@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
-import { CatalogItemType } from '@prisma/client';
+import { CatalogItemType, type Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { tenantDb } from '@/lib/db';
 import { requireRole } from '@/lib/auth/session';
@@ -12,6 +12,7 @@ import { addDaysToDateStr, todayDateStr } from '@/lib/dates';
 import { issueInvoice } from '@/lib/invoices/issue';
 import { invoiceBalanceCents, recordMoneyEntry, reversePayment } from '@/lib/invoices/payments';
 import { issueCreditNote } from '@/lib/invoices/creditNotes';
+import { depositDeductionRows, depositLines, finalInvoiceIssuedOn } from '@/lib/invoices/deposits';
 import { MANUAL_PAYMENT_METHODS } from '@/lib/invoices/paymentMethods';
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string[] | undefined>; ok?: string } | undefined;
@@ -70,6 +71,15 @@ function parseLines(linesJson: string): { data?: z.infer<typeof LineInputSchema>
   const parsed = z.array(LineInputSchema).min(1, { error: 'Add at least one line.' }).safeParse(raw);
   if (!parsed.success) return { error: 'One or more lines are invalid. Check quantities and prices.' };
   return { data: parsed.data };
+}
+
+type LineRow = Omit<Prisma.LineItemCreateWithoutInvoiceInput, 'quantity'> & { quantity: number | Prisma.Decimal };
+
+/** Work lines followed by any "Less: deposit" lines, numbered in order, with totals over all of them. */
+function withDeductions(rows: LineRow[], deductions: Prisma.LineItemCreateWithoutInvoiceInput[]) {
+  const all = [...rows, ...deductions].map((r, i) => ({ ...r, sortOrder: i }));
+  const totals = documentTotals(all.map((r) => ({ quantity: Number(r.quantity), unitPriceCents: r.unitPriceCents, taxRateBp: r.taxRateBp ?? 0 })));
+  return { lines: all, totals };
 }
 
 /** A new walk-in / counter-sale invoice with no job behind it. */
@@ -148,7 +158,7 @@ export async function updateInvoiceAction(_: FormState, formData: FormData): Pro
     if (!property) return { error: 'Property not found for this client.' };
   }
 
-  const { rows, totals } = buildLinesAndTotals(lines!, tenant);
+  const { rows } = buildLinesAndTotals(lines!, tenant);
 
   // Lock the row and re-check it's still a draft, so an issue happening at
   // the same moment can't be followed by this save rewriting its lines.
@@ -158,16 +168,22 @@ export async function updateInvoiceAction(_: FormState, formData: FormData): Pro
       WHERE "id" = ${d.id} AND "tenantId" = ${tenant.id} AND "status" = 'DRAFT'
       FOR UPDATE`;
     if (locked.length === 0) return false;
+    // The deposit deducted is never taken from the form: it's worked out afresh on every save.
+    const deductions =
+      existing.jobId && !existing.isDeposit
+        ? await depositDeductionRows(tx, { tenantId: tenant.id, jobId: existing.jobId, forInvoiceId: d.id, lock: false })
+        : [];
+    const all = withDeductions(rows, deductions);
     await tx.lineItem.deleteMany({ where: { invoiceId: d.id } });
     await tx.invoice.update({
       where: { id: d.id },
       data: {
         propertyId: d.propertyId || null,
         notes: d.notes || null,
-        subtotalCents: totals.subtotalCents,
-        taxCents: totals.taxCents,
-        totalCents: totals.totalCents,
-        lines: { create: rows },
+        subtotalCents: all.totals.subtotalCents,
+        taxCents: all.totals.taxCents,
+        totalCents: all.totals.totalCents,
+        lines: { create: all.lines },
       },
     });
     return true;
@@ -196,39 +212,90 @@ export async function createInvoiceFromJobAction(formData: FormData): Promise<vo
   const job = await db.job.findUnique({ where: { id: jobId }, include: { lines: { orderBy: { sortOrder: 'asc' } } } });
   if (!job) return;
 
-  const totals = documentTotals(
-    job.lines.map((l) => ({ quantity: Number(l.quantity), unitPriceCents: l.unitPriceCents, unitCostCents: l.unitCostCents, taxRateBp: l.taxRateBp }))
-  );
-
-  const invoice = await prisma.invoice.create({
-    data: {
-      tenantId: tenant.id,
-      clientId: job.clientId,
-      propertyId: job.propertyId,
-      jobId: job.id,
-      currencyCode: tenant.currencyCode,
-      notes: tenant.invoiceTerms || undefined,
-      subtotalCents: totals.subtotalCents,
-      taxCents: totals.taxCents,
-      totalCents: totals.totalCents,
-      lines: {
-        create: job.lines.map((l, i) => ({
-          catalogItemId: l.catalogItemId ?? undefined,
-          type: l.type,
-          description: l.description,
-          quantity: l.quantity,
-          unitCostCents: l.unitCostCents,
-          unitPriceCents: l.unitPriceCents,
-          taxRateBp: l.taxRateBp,
-          sortOrder: i,
-        })),
+  const invoice = await prisma.$transaction(async (tx) => {
+    const deductions = await depositDeductionRows(tx, { tenantId: tenant.id, jobId: job.id, forInvoiceId: null, lock: false });
+    const all = withDeductions(
+      job.lines.map((l) => ({
+        catalogItemId: l.catalogItemId ?? undefined,
+        type: l.type,
+        description: l.description,
+        quantity: l.quantity,
+        unitCostCents: l.unitCostCents,
+        unitPriceCents: l.unitPriceCents,
+        taxRateBp: l.taxRateBp,
+      })),
+      deductions
+    );
+    return tx.invoice.create({
+      data: {
+        tenantId: tenant.id,
+        clientId: job.clientId,
+        propertyId: job.propertyId,
+        jobId: job.id,
+        currencyCode: tenant.currencyCode,
+        notes: tenant.invoiceTerms || undefined,
+        subtotalCents: all.totals.subtotalCents,
+        taxCents: all.totals.taxCents,
+        totalCents: all.totals.totalCents,
+        lines: { create: all.lines },
       },
-    },
+    });
   });
 
   revalidatePath('/invoices');
   revalidatePath(`/jobs/${jobId}`);
   redirect(`/invoices/${invoice.id}`);
+}
+
+/**
+ * "Invoice the deposit" on an approved quote (or its job): a draft tax
+ * invoice for the quote's deposit, issued like any other invoice. VAT is due
+ * when a deposit is received, so it gets its own invoice; the job's final
+ * invoice then deducts it. One deposit invoice per quote.
+ */
+export async function createDepositInvoiceAction(formData: FormData): Promise<void> {
+  const { tenant } = await requireRole();
+  const quoteId = String(formData.get('quoteId') ?? '');
+
+  const result = await prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT "id" FROM "Quote" WHERE "id" = ${quoteId} AND "tenantId" = ${tenant.id} FOR UPDATE`;
+    if (locked.length === 0) return null;
+    const quote = await tx.quote.findUniqueOrThrow({ where: { id: quoteId }, include: { lines: true, jobs: { select: { id: true } } } });
+    if (quote.status !== 'APPROVED' && quote.status !== 'CONVERTED') return null;
+
+    const existing = await tx.invoice.findFirst({ where: { tenantId: tenant.id, quoteId, isDeposit: true, status: { not: 'VOID' } } });
+    if (existing) return existing;
+
+    // Once the job has been invoiced in full, a deposit would bill the client twice.
+    if (quote.jobs[0] && (await finalInvoiceIssuedOn(tx, quote.jobs[0].id))) return null;
+
+    const lines = depositLines(quote);
+    if (lines.length === 0) return null;
+    const totals = documentTotals(lines.map((l) => ({ quantity: 1, unitPriceCents: l.unitPriceCents, taxRateBp: l.taxRateBp ?? 0 })));
+    return tx.invoice.create({
+      data: {
+        tenantId: tenant.id,
+        clientId: quote.clientId,
+        propertyId: quote.propertyId,
+        quoteId,
+        jobId: quote.jobs[0]?.id,
+        isDeposit: true,
+        currencyCode: tenant.currencyCode,
+        notes: tenant.invoiceTerms || undefined,
+        subtotalCents: totals.subtotalCents,
+        taxCents: totals.taxCents,
+        totalCents: totals.totalCents,
+        lines: { create: lines },
+      },
+    });
+  });
+  if (!result) return;
+
+  revalidatePath('/invoices');
+  revalidatePath(`/quotes/${quoteId}`);
+  if (result.jobId) revalidatePath(`/jobs/${result.jobId}`);
+  redirect(`/invoices/${result.id}`);
 }
 
 export async function deleteInvoiceAction(formData: FormData): Promise<void> {

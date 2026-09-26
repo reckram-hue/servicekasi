@@ -43,9 +43,13 @@ export interface DocumentTotals {
   marginPercent: number;
 }
 
-/** Rounds to the nearest cent (standard round-half-up), the way SARS expects. */
+/**
+ * Rounds to the nearest cent, halves away from zero, the way SARS expects.
+ * Symmetric, so a negative line (e.g. "Less: deposit") rounds to exactly
+ * minus what the same positive line rounded to.
+ */
 function roundCents(value: number): number {
-  return Math.round(value);
+  return Math.sign(value) * Math.round(Math.abs(value));
 }
 
 export function lineTotals(line: MoneyLineInput): LineTotals {

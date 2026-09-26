@@ -8,7 +8,7 @@ import { describeRule, patternOf } from '@/lib/recurrence';
 import { publicHolidayName } from '@/lib/holidays';
 import { cancelVisitAction, deleteAttachmentAction, stopRecurrenceAction } from '@/lib/jobs/actions';
 import { recurrenceEndsStr, topUpRecurringVisits } from '@/lib/jobs/recurring';
-import { createInvoiceFromJobAction } from '@/lib/invoices/actions';
+import { createDepositInvoiceAction, createInvoiceFromJobAction } from '@/lib/invoices/actions';
 import { invoiceBadge } from '@/lib/invoices/status';
 import { AddVisitForm } from '@/components/jobs/AddVisitForm';
 import { RecurrenceForm } from '@/components/jobs/RecurrenceForm';
@@ -243,12 +243,25 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">Invoices</h2>
             {isOpen && (
-              <form action={createInvoiceFromJobAction}>
-                <input type="hidden" name="jobId" value={job.id} />
-                <button type="submit" className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-amber-400">
-                  Create invoice
-                </button>
-              </form>
+              <div className="flex items-center gap-2">
+                {job.quote &&
+                  job.quote.depositCents > 0 &&
+                  !job.invoices.some((i) => i.isDeposit && i.status !== 'VOID') &&
+                  !job.invoices.some((i) => !i.isDeposit && i.kind !== 'CREDIT_NOTE' && i.status !== 'DRAFT' && i.status !== 'VOID') && (
+                  <form action={createDepositInvoiceAction}>
+                    <input type="hidden" name="quoteId" value={job.quote.id} />
+                    <button type="submit" className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700">
+                      Invoice the deposit
+                    </button>
+                  </form>
+                )}
+                <form action={createInvoiceFromJobAction}>
+                  <input type="hidden" name="jobId" value={job.id} />
+                  <button type="submit" className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-amber-400">
+                    Create invoice
+                  </button>
+                </form>
+              </div>
             )}
           </div>
           {job.invoices.length === 0 ? (
@@ -261,7 +274,10 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                   href={`/invoices/${inv.id}`}
                   className="flex items-center justify-between rounded-lg border border-slate-800 p-3 text-sm hover:bg-slate-800/50"
                 >
-                  <span className="text-slate-100">{inv.number ?? 'Draft'}</span>
+                  <span className="text-slate-100">
+                    {inv.number ?? 'Draft'}
+                    {inv.isDeposit && <span className="ml-2 text-xs text-slate-500">Deposit</span>}
+                  </span>
                   <span className="flex items-center gap-2">
                     <span className="text-slate-400">{formatMoney(inv.totalCents, tenant.currencyCode)}</span>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${invoiceBadge(inv).style}`}>{invoiceBadge(inv).label}</span>

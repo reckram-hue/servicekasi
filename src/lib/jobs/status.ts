@@ -1,5 +1,6 @@
 import 'server-only';
 import type { JobStatus, Prisma } from '@prisma/client';
+import { depositsCoverJob } from '@/lib/invoices/deposits';
 
 /**
  * Recomputes a job's status from its (non-cancelled) visits, per the rule:
@@ -32,12 +33,18 @@ export async function syncJobStatus(tx: Prisma.TransactionClient, jobId: string)
  * cancelled job is never touched.
  */
 export async function syncJobInvoicingStatus(tx: Prisma.TransactionClient, jobId: string): Promise<void> {
-  const job = await tx.job.findUnique({ where: { id: jobId }, select: { status: true } });
+  const job = await tx.job.findUnique({ where: { id: jobId }, select: { status: true, tenantId: true } });
   if (!job || (job.status !== 'REQUIRES_INVOICING' && job.status !== 'COMPLETED')) return;
 
-  const invoices = await tx.invoice.findMany({ where: { jobId, status: { not: 'VOID' }, kind: { not: 'CREDIT_NOTE' } }, select: { status: true } });
+  const invoices = await tx.invoice.findMany({
+    where: { jobId, status: { not: 'VOID' }, kind: { not: 'CREDIT_NOTE' } },
+    select: { status: true, isDeposit: true },
+  });
   const issued = invoices.filter((i) => i.status !== 'DRAFT');
-  const allPaid = issued.length > 0 && issued.every((i) => i.status === 'PAID');
+  // A paid deposit alone isn't the job invoiced: the final invoice must be issued and paid too,
+  // unless the deposit covers all the work (e.g. 100%), when there's nothing left to bill.
+  const invoiced = issued.some((i) => !i.isDeposit) || (issued.length > 0 && (await depositsCoverJob(tx, job.tenantId, jobId)));
+  const allPaid = invoiced && issued.every((i) => i.status === 'PAID');
 
   const status: JobStatus = allPaid ? 'COMPLETED' : 'REQUIRES_INVOICING';
   if (job.status !== status) await tx.job.update({ where: { id: jobId }, data: { status } });

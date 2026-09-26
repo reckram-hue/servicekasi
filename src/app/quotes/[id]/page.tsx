@@ -8,6 +8,7 @@ import { formatMoney } from '@/lib/money';
 import { QuoteBuilder } from '@/components/quotes/QuoteBuilder';
 import { SendQuoteButton } from '@/components/quotes/SendQuoteButton';
 import { convertQuoteToJobAction } from '@/lib/jobs/actions';
+import { createDepositInvoiceAction } from '@/lib/invoices/actions';
 
 function displayName(c: { firstName: string; lastName: string | null; companyName: string | null }) {
   const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
@@ -35,7 +36,16 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
   const [quote, catalogItems, origin] = await Promise.all([
     db.quote.findUnique({
       where: { id },
-      include: { client: { include: { properties: true } }, lines: { orderBy: { sortOrder: 'asc' } }, jobs: true },
+      include: {
+        client: { include: { properties: true } },
+        lines: { orderBy: { sortOrder: 'asc' } },
+        jobs: {
+          include: {
+            invoices: { where: { isDeposit: false, kind: { not: 'CREDIT_NOTE' }, status: { in: ['SENT', 'PARTIALLY_PAID', 'PAID'] } }, select: { id: true } },
+          },
+        },
+        invoices: { where: { isDeposit: true, status: { not: 'VOID' } }, select: { id: true, number: true } },
+      },
     }),
     db.catalogItem.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
     siteOrigin(),
@@ -88,6 +98,26 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
               {quote.jobs[0].number}
             </Link>
             .
+          </div>
+        )}
+
+        {(quote.status === 'APPROVED' || quote.status === 'CONVERTED') && quote.depositCents > 0 && (quote.invoices[0] || !quote.jobs[0]?.invoices.length) && (
+          <div className="mb-6 flex items-center justify-between gap-3 rounded-lg border border-slate-800 px-4 py-3 text-sm">
+            <span className="text-slate-300">
+              Deposit{quote.depositPercent ? ` (${quote.depositPercent}%)` : ''}: {formatMoney(quote.depositCents, tenant.currencyCode)}
+            </span>
+            {quote.invoices[0] ? (
+              <Link href={`/invoices/${quote.invoices[0].id}`} className="text-amber-400 hover:underline">
+                {quote.invoices[0].number ? `Deposit invoice ${quote.invoices[0].number}` : 'Deposit invoice (draft)'}
+              </Link>
+            ) : (
+              <form action={createDepositInvoiceAction}>
+                <input type="hidden" name="quoteId" value={quote.id} />
+                <button type="submit" className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700">
+                  Invoice the deposit
+                </button>
+              </form>
+            )}
           </div>
         )}
 

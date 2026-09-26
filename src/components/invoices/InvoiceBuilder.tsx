@@ -59,7 +59,13 @@ export function InvoiceBuilder({
   catalogItems,
   initial,
   issue,
+  deductions = [],
+  depositFor,
 }: {
+  /** "Less: deposit" lines worked out on the server. Read-only here; recalculated on every save. */
+  deductions?: { description: string; unitPriceCents: number; taxRateBp: number }[];
+  /** Set on a deposit invoice: the quote it's the deposit for. */
+  depositFor?: { id: string; number: string };
   invoiceId?: string;
   /** Only for a saved draft: today, and today + the business's payment terms, as "YYYY-MM-DD". */
   issue?: { today: string; defaultDueDate: string; isTaxInvoice: boolean };
@@ -132,7 +138,9 @@ export function InvoiceBuilder({
   }
 
   const moneyLines = lines.map((row) => toMoneyLine(row, tenant.vatRegistered, tenant.defaultTaxRateBp));
-  const totals = documentTotals(moneyLines);
+  // Internal cost and margin are for this invoice's work only; the deposit was billed separately.
+  const workTotals = documentTotals(moneyLines);
+  const totals = documentTotals([...moneyLines, ...deductions.map((l) => ({ quantity: 1, unitPriceCents: l.unitPriceCents, taxRateBp: l.taxRateBp }))]);
   const linesJson = JSON.stringify(
     lines.map((row) => ({
       catalogItemId: row.catalogItemId || undefined,
@@ -160,6 +168,7 @@ export function InvoiceBuilder({
             <div className="font-medium text-slate-100">{client.name}</div>
           </div>
           {job && <div className="text-sm text-slate-400">From job {job.number}</div>}
+          {depositFor && <div className="text-sm text-slate-400">Deposit for quote {depositFor.number}</div>}
         </div>
 
         {client.properties.length > 0 && (
@@ -245,6 +254,23 @@ export function InvoiceBuilder({
           ))}
         </div>
 
+        {deductions.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {deductions.map((l, i) => (
+              <div key={i} className="flex items-center justify-between rounded-lg border border-dashed border-slate-700 px-3 py-2 text-sm">
+                <span className="text-slate-300">
+                  {l.description}
+                  {tenant.vatRegistered && <span className="ml-2 text-xs text-slate-500">VAT {l.taxRateBp / 100}%</span>}
+                </span>
+                <span className="tabular-nums text-slate-300">{formatMoney(l.unitPriceCents, tenant.currencyCode)}</span>
+              </div>
+            ))}
+            <p className="text-xs text-slate-500">
+              The deposit already invoiced on this job is deducted automatically, at the VAT rate it was charged at, so VAT isn&apos;t charged twice.
+            </p>
+          </div>
+        )}
+
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -295,15 +321,15 @@ export function InvoiceBuilder({
         <div className="space-y-1 text-sm">
           <div className="flex justify-between text-slate-400">
             <span>Cost</span>
-            <span>{formatMoney(totals.costCents, tenant.currencyCode)}</span>
+            <span>{formatMoney(workTotals.costCents, tenant.currencyCode)}</span>
           </div>
           <div className="flex justify-between text-slate-400">
             <span>Gross profit</span>
-            <span>{formatMoney(totals.profitCents, tenant.currencyCode)}</span>
+            <span>{formatMoney(workTotals.profitCents, tenant.currencyCode)}</span>
           </div>
           <div className="flex justify-between font-medium text-emerald-400">
             <span>Margin</span>
-            <span>{totals.marginPercent.toFixed(1)}%</span>
+            <span>{workTotals.marginPercent.toFixed(1)}%</span>
           </div>
         </div>
       </div>

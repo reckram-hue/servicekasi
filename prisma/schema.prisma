@@ -353,8 +353,9 @@ model Quote {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  lines LineItem[]
-  jobs  Job[]
+  lines    LineItem[]
+  jobs     Job[]
+  invoices Invoice[]
 
   @@unique([tenantId, number])
   @@index([tenantId, status])
@@ -540,11 +541,14 @@ model LineItem {
   sortOrder      Int             @default(0)
   // On a credit note line: the invoice line it credits, so the same line can't be credited twice over.
   creditsLineItemId String?
+  // On a "Less: deposit" line of a later invoice: the deposit invoice it deducts.
+  deductsInvoiceId  String?
 
   @@index([quoteId])
   @@index([jobId])
   @@index([invoiceId])
   @@index([creditsLineItemId])
+  @@index([deductsInvoiceId])
 }
 
 // ───────────────────────── Money in ─────────────────────────
@@ -581,6 +585,10 @@ model Invoice {
   creditsInvoiceId String?
   creditsInvoice   Invoice?      @relation("CreditNotes", fields: [creditsInvoiceId], references: [id])
   creditNotes      Invoice[]     @relation("CreditNotes")
+  // A deposit invoice for an approved quote. Later invoices on the job deduct it.
+  isDeposit        Boolean       @default(false)
+  quoteId          String?
+  quote            Quote?        @relation(fields: [quoteId], references: [id])
   status           InvoiceStatus @default(DRAFT)
   issuedAt         DateTime?
   dueAt            DateTime?
@@ -606,6 +614,8 @@ model Invoice {
 
   @@unique([tenantId, number])
   @@index([tenantId, status])
+  @@index([jobId])
+  @@index([quoteId])
 }
 
 enum PaymentMethod {

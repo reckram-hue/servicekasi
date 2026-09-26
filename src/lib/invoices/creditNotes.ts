@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { nextDocumentNumber } from '@/lib/db';
 import { formatMoney, lineTotals } from '@/lib/money';
 import { lockInvoice, recalcInvoiceBalance } from '@/lib/invoices/payments';
+import { depositDeductedOn } from '@/lib/invoices/deposits';
 
 type CreditableLine = { id: string; quantity: { toString(): string }; unitPriceCents: number; taxRateBp: number };
 
@@ -69,6 +70,10 @@ export async function issueCreditNote(
   if (invoice.status === 'DRAFT') return { error: "A draft isn't issued yet — edit or delete it instead." };
   if (invoice.status === 'VOID') return { error: 'This invoice has been voided.' };
   if (!invoice.number || !invoice.sellerSnapshot || !invoice.buyerSnapshot) return { error: 'This invoice is missing its issued details.' };
+  if (invoice.isDeposit) {
+    const deductedOn = await depositDeductedOn(tx, invoice.id);
+    if (deductedOn) return { error: `This deposit is already deducted on invoice ${deductedOn}. Credit that invoice instead.` };
+  }
 
   const remaining = await remainingCreditByLine(tx, invoice.lines);
   const chosen = credits.filter((c) => c.amountCents > 0);
@@ -105,7 +110,8 @@ export async function issueCreditNote(
   const totals = { subtotalCents, taxCents, totalCents: subtotalCents + taxCents };
   // Safety net: credits can never add up to more than the invoice.
   if (invoice.creditedCents + totals.totalCents > invoice.totalCents) {
-    return { error: "That's more than is left to credit on this invoice." };
+    const left = formatMoney(Math.max(0, invoice.totalCents - invoice.creditedCents), invoice.currencyCode);
+    return { error: `Only ${left} (incl. VAT) is left to credit on this invoice.` };
   }
 
   const number = await nextDocumentNumber(tx, tenantId, 'CREDIT_NOTE');

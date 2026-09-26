@@ -8,6 +8,8 @@ import { addDaysToDateStr, todayDateStr } from '@/lib/dates';
 import { invoiceDocumentProps } from '@/lib/invoices/publicQuery';
 import { invoiceBadge, isInvoiceOverdue } from '@/lib/invoices/status';
 import { invoiceBalanceCents } from '@/lib/invoices/payments';
+import { depositDeductionRows } from '@/lib/invoices/deposits';
+import { prisma } from '@/lib/prisma';
 import { PAYMENT_METHOD_LABELS } from '@/lib/invoices/paymentMethods';
 import { reversePaymentAction } from '@/lib/invoices/actions';
 import { InvoiceBuilder } from '@/components/invoices/InvoiceBuilder';
@@ -46,6 +48,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         lines: { orderBy: { sortOrder: 'asc' } },
         payments: { orderBy: { createdAt: 'asc' } },
         job: true,
+        quote: { select: { id: true, number: true } },
         creditNotes: {
           where: { kind: 'CREDIT_NOTE', status: { not: 'DRAFT' } },
           select: { id: true, number: true, totalCents: true, issuedAt: true, notes: true },
@@ -58,6 +61,12 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
     siteOrigin(),
   ]);
   if (!invoice) notFound();
+
+  // What saving this draft would deduct right now (saving recalculates it the same way).
+  const deductions =
+    invoice.status === 'DRAFT' && invoice.jobId && !invoice.isDeposit
+      ? await depositDeductionRows(prisma, { tenantId: tenant.id, jobId: invoice.jobId, forInvoiceId: invoice.id, lock: false })
+      : [];
 
   const today = todayDateStr(tenant.timezone);
   const doc = invoice.status === 'DRAFT' ? null : invoiceDocumentProps(invoice, tenant);
@@ -107,12 +116,25 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           </p>
         )}
 
-        {invoice.job && (
+        {(invoice.job || invoice.quote) && (
           <p className="mb-6 text-sm text-slate-500 print:hidden">
-            From job{' '}
-            <Link href={`/jobs/${invoice.job.id}`} className="text-amber-400 hover:underline">
-              {invoice.job.number}
-            </Link>
+            {invoice.isDeposit && invoice.quote && (
+              <>
+                Deposit for quote{' '}
+                <Link href={`/quotes/${invoice.quote.id}`} className="text-amber-400 hover:underline">
+                  {invoice.quote.number}
+                </Link>
+                {invoice.job && ' · '}
+              </>
+            )}
+            {invoice.job && (
+              <>
+                {invoice.isDeposit ? 'job' : 'From job'}{' '}
+                <Link href={`/jobs/${invoice.job.id}`} className="text-amber-400 hover:underline">
+                  {invoice.job.number}
+                </Link>
+              </>
+            )}
           </p>
         )}
 
@@ -215,6 +237,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             <InvoiceBuilder
               invoiceId={invoice.id}
               job={invoice.job ? { id: invoice.job.id, number: invoice.job.number } : undefined}
+              depositFor={invoice.isDeposit && invoice.quote ? invoice.quote : undefined}
+              deductions={deductions.map((l) => ({ description: l.description, unitPriceCents: l.unitPriceCents, taxRateBp: l.taxRateBp ?? 0 }))}
               client={{
                 id: invoice.client.id,
                 name: displayName(invoice.client),
@@ -235,7 +259,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
               initial={{
                 notes: invoice.notes ?? '',
                 propertyId: invoice.propertyId,
-                lines: invoice.lines.map((l) => ({
+                lines: invoice.lines.filter((l) => !l.deductsInvoiceId).map((l) => ({
                   key: l.id,
                   catalogItemId: l.catalogItemId ?? undefined,
                   type: l.type,

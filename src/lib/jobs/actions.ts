@@ -94,6 +94,8 @@ export async function convertQuoteToJobAction(formData: FormData): Promise<void>
       },
     });
     await tx.quote.update({ where: { id: quote.id }, data: { status: 'CONVERTED' } });
+    // A deposit invoiced before the job existed now belongs to it, so the final invoice deducts it.
+    await tx.invoice.updateMany({ where: { tenantId: tenant.id, quoteId: quote.id }, data: { jobId: created.id } });
     return created;
   });
 
