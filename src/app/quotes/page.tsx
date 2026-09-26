@@ -1,0 +1,136 @@
+import Link from 'next/link';
+import { QuoteStatus } from '@prisma/client';
+import { requireRole } from '@/lib/auth/session';
+import { tenantDb } from '@/lib/db';
+import { formatMoney } from '@/lib/money';
+import { deleteQuoteAction } from '@/lib/quotes/actions';
+
+const STATUS_TABS: { value: string; label: string }[] = [
+  { value: '', label: 'All' },
+  { value: 'DRAFT', label: 'Draft' },
+  { value: 'SENT', label: 'Sent' },
+  { value: 'APPROVED', label: 'Approved' },
+  { value: 'CHANGES_REQUESTED', label: 'Changes requested' },
+  { value: 'DECLINED', label: 'Declined' },
+];
+
+function displayName(c: { firstName: string; lastName: string | null; companyName: string | null }) {
+  const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
+  return c.companyName ? `${name} (${c.companyName})` : name;
+}
+
+const STATUS_STYLES: Record<string, string> = {
+  DRAFT: 'bg-slate-800 text-slate-300',
+  SENT: 'bg-blue-500/10 text-blue-300',
+  APPROVED: 'bg-emerald-500/10 text-emerald-300',
+  CHANGES_REQUESTED: 'bg-amber-500/10 text-amber-300',
+  DECLINED: 'bg-red-500/10 text-red-300',
+  CONVERTED: 'bg-purple-500/10 text-purple-300',
+  EXPIRED: 'bg-slate-800 text-slate-500',
+};
+
+export default async function QuotesPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+  const { tenant } = await requireRole();
+  const { status } = await searchParams;
+  const statusFilter = status && status in QuoteStatus ? (status as QuoteStatus) : undefined;
+
+  const db = tenantDb(tenant.id);
+  const [quotes, clients] = await Promise.all([
+    db.quote.findMany({
+      where: statusFilter ? { status: statusFilter } : undefined,
+      include: { client: true },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    }),
+    db.client.findMany({ where: { archived: false }, orderBy: { firstName: 'asc' }, take: 500 }),
+  ]);
+
+  return (
+    <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
+      <div className="mx-auto max-w-4xl">
+        <Link href="/" className="text-sm text-amber-400 hover:underline">
+          ← Dashboard
+        </Link>
+        <h1 className="mt-2 mb-6 text-2xl font-bold">Quotes — {tenant.businessName}</h1>
+
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {STATUS_TABS.map((tab) => (
+              <Link
+                key={tab.value}
+                href={tab.value ? `/quotes?status=${tab.value}` : '/quotes'}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                  (status ?? '') === tab.value ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {tab.label}
+              </Link>
+            ))}
+          </div>
+
+          {clients.length > 0 && (
+            <form action="/quotes/new" method="GET" className="flex items-center gap-2">
+              <select
+                name="client"
+                required
+                defaultValue=""
+                className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-amber-400 focus:outline-none"
+              >
+                <option value="" disabled>
+                  Choose a client…
+                </option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {displayName(c)}
+                  </option>
+                ))}
+              </select>
+              <button type="submit" className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400">
+                + New quote
+              </button>
+            </form>
+          )}
+        </div>
+
+        {quotes.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-800 p-10 text-center text-slate-500">
+            {status ? 'No quotes with this status.' : 'No quotes yet. Pick a client above to create the first one.'}
+          </p>
+        ) : (
+          <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
+            {quotes.map((q) => (
+              <div key={q.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 p-4 last:border-0">
+                <div>
+                  <div className="font-medium text-slate-100">
+                    <Link href={`/quotes/${q.id}`} className="hover:underline">
+                      {q.number} — {q.title}
+                    </Link>
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    {displayName(q.client)} · {formatMoney(q.totalCents, tenant.currencyCode)}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS_STYLES[q.status] ?? 'bg-slate-800 text-slate-300'}`}>
+                    {q.status.replace('_', ' ')}
+                  </span>
+                  <Link href={`/quotes/${q.id}`} className="rounded-md bg-slate-800 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700">
+                    Open
+                  </Link>
+                  {q.status === 'DRAFT' && (
+                    <form action={deleteQuoteAction}>
+                      <input type="hidden" name="id" value={q.id} />
+                      <button type="submit" className="rounded-md bg-slate-800 px-3 py-1 text-xs font-medium text-red-400 hover:bg-red-500/10">
+                        Delete
+                      </button>
+                    </form>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

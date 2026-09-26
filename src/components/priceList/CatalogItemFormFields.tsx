@@ -1,12 +1,5 @@
 import { Checkbox, Field, Select, TextArea } from '@/components/auth/ui';
-
-const TYPE_LABELS: Record<string, string> = {
-  SERVICE: 'Service',
-  MATERIAL: 'Material',
-  CALLOUT: 'Call-out fee',
-  TRAVEL: 'Travel',
-  LABOUR: 'Labour',
-};
+import { CATALOG_ITEM_TYPE_LABELS } from '@/lib/catalogItemTypes';
 
 export type CatalogItemDefaults = {
   type?: string;
@@ -27,7 +20,7 @@ export function CatalogItemFormFields({
   return (
     <>
       <Select label="Type" name="type" defaultValue={defaults?.type ?? 'SERVICE'} errors={errors?.type}>
-        {Object.entries(TYPE_LABELS).map(([value, label]) => (
+        {Object.entries(CATALOG_ITEM_TYPE_LABELS).map(([value, label]) => (
           <option key={value} value={value}>
             {label}
           </option>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClientAction, toggleArchiveClientAction, updateClientAction, type FormState } from '@/lib/clients/actions';
 import { FormMessage, SubmitButton } from '@/components/auth/ui';
@@ -188,6 +189,12 @@ export function ClientsPageClient({ clients, query }: { clients: ClientRow[]; qu
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <Link
+                  href={`/quotes/new?client=${c.id}`}
+                  className="rounded-md bg-slate-800 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700"
+                >
+                  New quote
+                </Link>
                 <button
                   onClick={() => setEditing(c)}
                   className="rounded-md bg-slate-800 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700"

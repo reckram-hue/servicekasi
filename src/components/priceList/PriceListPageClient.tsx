@@ -8,6 +8,7 @@ import {
   type FormState,
 } from '@/lib/priceList/actions';
 import { formatMoney } from '@/lib/money';
+import { CATALOG_ITEM_TYPE_LABELS } from '@/lib/catalogItemTypes';
 import { FormMessage, SubmitButton } from '@/components/auth/ui';
 import { Modal } from '@/components/ui/Modal';
 import { CatalogItemFormFields } from './CatalogItemFormFields';
@@ -21,14 +22,6 @@ export type CatalogItemRow = {
   unitPriceCents: number;
   taxable: boolean;
   active: boolean;
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  SERVICE: 'Service',
-  MATERIAL: 'Material',
-  CALLOUT: 'Call-out fee',
-  TRAVEL: 'Travel',
-  LABOUR: 'Labour',
 };
 
 function rands(cents: number): string {
@@ -148,7 +141,7 @@ export function PriceListPageClient({ items, currencyCode }: { items: CatalogIte
               <div>
                 <div className="font-medium text-slate-100">
                   {item.name}
-                  <span className="ml-2 text-xs text-slate-500">{TYPE_LABELS[item.type] ?? item.type}</span>
+                  <span className="ml-2 text-xs text-slate-500">{CATALOG_ITEM_TYPE_LABELS[item.type as keyof typeof CATALOG_ITEM_TYPE_LABELS] ?? item.type}</span>
                   {!item.taxable && <span className="ml-2 text-xs text-slate-500">no VAT</span>}
                 </div>
                 <div className="text-xs text-slate-400">
