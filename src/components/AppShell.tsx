@@ -65,6 +65,8 @@ export function AppShell({ userName, businessName, role, logout }: AppShellProps
             <span>{userName} · {businessName}</span>
             <Link href="/clients" className="text-amber-400 hover:underline">Clients</Link>
             <Link href="/quotes" className="text-amber-400 hover:underline">Quotes</Link>
+            <Link href="/jobs" className="text-amber-400 hover:underline">Jobs</Link>
+            <Link href="/schedule" className="text-amber-400 hover:underline">Schedule</Link>
             <Link href="/team" className="text-amber-400 hover:underline">Team</Link>
             <Link href="/settings/business" className="text-amber-400 hover:underline">Business</Link>
             <Link href="/settings/price-list" className="text-amber-400 hover:underline">Price list</Link>

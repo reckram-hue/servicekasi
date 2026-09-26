@@ -195,6 +195,12 @@ export function ClientsPageClient({ clients, query }: { clients: ClientRow[]; qu
                 >
                   New quote
                 </Link>
+                <Link
+                  href={`/jobs/new?client=${c.id}`}
+                  className="rounded-md bg-slate-800 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700"
+                >
+                  New job
+                </Link>
                 <button
                   onClick={() => setEditing(c)}
                   className="rounded-md bg-slate-800 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700"

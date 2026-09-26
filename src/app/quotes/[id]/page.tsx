@@ -7,6 +7,7 @@ import { isoDateDaysFromNow } from '@/lib/dates';
 import { formatMoney } from '@/lib/money';
 import { QuoteBuilder } from '@/components/quotes/QuoteBuilder';
 import { SendQuoteButton } from '@/components/quotes/SendQuoteButton';
+import { convertQuoteToJobAction } from '@/lib/jobs/actions';
 
 function displayName(c: { firstName: string; lastName: string | null; companyName: string | null }) {
   const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
@@ -34,7 +35,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
   const [quote, catalogItems, origin] = await Promise.all([
     db.quote.findUnique({
       where: { id },
-      include: { client: { include: { properties: true } }, lines: { orderBy: { sortOrder: 'asc' } } },
+      include: { client: { include: { properties: true } }, lines: { orderBy: { sortOrder: 'asc' } }, jobs: true },
     }),
     db.catalogItem.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
     siteOrigin(),
@@ -71,6 +72,22 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
               )}
             </div>
             <div className="mt-1 text-emerald-200">Approved total: {formatMoney(quote.totalCents, tenant.currencyCode)}</div>
+            <form action={convertQuoteToJobAction} className="mt-3">
+              <input type="hidden" name="quoteId" value={quote.id} />
+              <button type="submit" className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400">
+                Convert to job
+              </button>
+            </form>
+          </div>
+        )}
+
+        {quote.status === 'CONVERTED' && quote.jobs[0] && (
+          <div className="mb-6 rounded-lg bg-purple-500/10 px-4 py-3 text-sm text-purple-300">
+            Converted to job{' '}
+            <Link href={`/jobs/${quote.jobs[0].id}`} className="font-medium underline hover:text-purple-200">
+              {quote.jobs[0].number}
+            </Link>
+            .
           </div>
         )}
 
