@@ -240,6 +240,7 @@ model Property {
   requests ServiceRequest[]
   quotes   Quote[]
   jobs     Job[]
+  invoices Invoice[]
 
   @@index([tenantId, clientId])
 }
@@ -569,6 +570,8 @@ model Invoice {
   kind             InvoiceKind   @default(INVOICE)
   clientId         String
   client           Client        @relation(fields: [clientId], references: [id])
+  propertyId       String?
+  property         Property?     @relation(fields: [propertyId], references: [id])
   jobId            String?
   job              Job?          @relation(fields: [jobId], references: [id])
   creditsInvoiceId String? // set on credit notes

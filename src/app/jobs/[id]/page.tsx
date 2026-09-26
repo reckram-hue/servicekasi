@@ -8,6 +8,7 @@ import { describeRule, patternOf } from '@/lib/recurrence';
 import { publicHolidayName } from '@/lib/holidays';
 import { cancelVisitAction, deleteAttachmentAction, stopRecurrenceAction } from '@/lib/jobs/actions';
 import { recurrenceEndsStr, topUpRecurringVisits } from '@/lib/jobs/recurring';
+import { createInvoiceFromJobAction } from '@/lib/invoices/actions';
 import { AddVisitForm } from '@/components/jobs/AddVisitForm';
 import { RecurrenceForm } from '@/components/jobs/RecurrenceForm';
 
@@ -27,6 +28,14 @@ const STATUS_STYLES: Record<string, string> = {
   REQUIRES_INVOICING: 'bg-purple-500/10 text-purple-300',
   COMPLETED: 'bg-emerald-500/10 text-emerald-300',
   CANCELLED: 'bg-red-500/10 text-red-300',
+};
+
+const INVOICE_STATUS_STYLES: Record<string, string> = {
+  DRAFT: 'bg-slate-800 text-slate-300',
+  SENT: 'bg-blue-500/10 text-blue-300',
+  PARTIALLY_PAID: 'bg-amber-500/10 text-amber-300',
+  PAID: 'bg-emerald-500/10 text-emerald-300',
+  VOID: 'bg-red-500/10 text-red-300',
 };
 
 const VISIT_STATUS_STYLES: Record<string, string> = {
@@ -70,6 +79,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
             attachments: { orderBy: { createdAt: 'asc' } },
           },
         },
+        invoices: { orderBy: { createdAt: 'desc' } },
       },
     }),
     db.membership.findMany({ where: { role: 'TECHNICIAN', active: true }, include: { user: true }, orderBy: { createdAt: 'asc' } }),
@@ -231,6 +241,45 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
             </div>
           </div>
         )}
+
+        <div
+          className={`mb-6 rounded-xl border p-4 ${
+            job.status === 'REQUIRES_INVOICING' ? 'border-purple-800 bg-purple-500/5' : 'border-slate-800'
+          }`}
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">Invoices</h2>
+            {isOpen && (
+              <form action={createInvoiceFromJobAction}>
+                <input type="hidden" name="jobId" value={job.id} />
+                <button type="submit" className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-amber-400">
+                  Create invoice
+                </button>
+              </form>
+            )}
+          </div>
+          {job.invoices.length === 0 ? (
+            <p className="text-sm text-slate-500">Not invoiced yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {job.invoices.map((inv) => (
+                <Link
+                  key={inv.id}
+                  href={`/invoices/${inv.id}`}
+                  className="flex items-center justify-between rounded-lg border border-slate-800 p-3 text-sm hover:bg-slate-800/50"
+                >
+                  <span className="text-slate-100">{inv.number ?? 'Draft'}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-slate-400">{formatMoney(inv.totalCents, tenant.currencyCode)}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${INVOICE_STATUS_STYLES[inv.status] ?? 'bg-slate-800 text-slate-300'}`}>
+                      {inv.status.replace('_', ' ')}
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
 
         {job.recurrenceRule ? (
           <div className="mb-6 rounded-xl border border-slate-800 p-4">
