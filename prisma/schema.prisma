@@ -70,6 +70,10 @@ model Tenant {
   logoUrl      String?
   primaryColor String?
 
+  // Printed on every quote
+  quoteTerms            String?
+  defaultQuoteValidDays Int     @default(30)
+
   plan               PlanTier           @default(FREE_SOLO)
   subscriptionStatus SubscriptionStatus @default(TRIALING)
   trialEndsAt        DateTime?
@@ -311,21 +315,22 @@ enum QuoteStatus {
 }
 
 model Quote {
-  id           String          @id @default(uuid())
-  tenantId     String
-  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  number       String // "Q-0001", allocated from DocumentSequence
-  clientId     String
-  client       Client          @relation(fields: [clientId], references: [id])
-  propertyId   String?
-  property     Property?       @relation(fields: [propertyId], references: [id])
-  requestId    String?
-  request      ServiceRequest? @relation(fields: [requestId], references: [id])
-  title        String
-  status       QuoteStatus     @default(DRAFT)
-  notes        String?
-  validUntil   DateTime?
-  depositCents Int             @default(0)
+  id             String          @id @default(uuid())
+  tenantId       String
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  number         String // "Q-0001", allocated from DocumentSequence
+  clientId       String
+  client         Client          @relation(fields: [clientId], references: [id])
+  propertyId     String?
+  property       Property?       @relation(fields: [propertyId], references: [id])
+  requestId      String?
+  request        ServiceRequest? @relation(fields: [requestId], references: [id])
+  title          String
+  status         QuoteStatus     @default(DRAFT)
+  notes          String?
+  validUntil     DateTime?
+  depositCents   Int             @default(0)
+  depositPercent Int? // shown as "50% deposit" instead of a fixed amount
 
   // Totals snapshot (recalculated from lines while DRAFT)
   subtotalCents Int @default(0)
@@ -337,6 +342,8 @@ model Quote {
   sentAt         DateTime?
   approvedAt     DateTime?
   approvedByName String?
+  approvedIp     String? // proof of acceptance
+  clientMessage  String? // what the client wrote when requesting changes / declining
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -512,6 +519,7 @@ model LineItem {
   unitPriceCents Int
   taxRateBp      Int             @default(0) // copied from tenant at creation; 0 if not VAT registered
   optional       Boolean         @default(false) // Jobber-style optional add-ons on quotes
+  selected       Boolean         @default(true) // client ticked/unticked an optional line
   sortOrder      Int             @default(0)
 
   @@index([quoteId])

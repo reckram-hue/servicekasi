@@ -48,6 +48,46 @@ export function Field({
   );
 }
 
+export function TextArea({
+  label,
+  name,
+  errors,
+  hint,
+  ...rest
+}: {
+  label: string;
+  name: string;
+  errors?: string[];
+  hint?: string;
+} & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <label className="block mb-4">
+      <span className="block text-sm font-medium text-slate-300 mb-1">{label}</span>
+      <textarea
+        name={name}
+        rows={3}
+        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+        {...rest}
+      />
+      {hint && !errors?.length && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
+      {errors?.map((e) => (
+        <span key={e} className="mt-1 block text-xs text-red-400">
+          {e}
+        </span>
+      ))}
+    </label>
+  );
+}
+
+export function Checkbox({ label, name, ...rest }: { label: string; name: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <label className="mb-4 flex items-center gap-2 text-sm text-slate-300">
+      <input type="checkbox" name={name} className="h-4 w-4 rounded" {...rest} />
+      {label}
+    </label>
+  );
+}
+
 export function SubmitButton({ pending, children }: { pending: boolean; children: React.ReactNode }) {
   return (
     <button
