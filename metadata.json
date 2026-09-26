@@ -1,0 +1,6 @@
+{
+  "name": "ServiceKasi - South African Field Service Management",
+  "description": "Jobber-style Field Service Management (FSM) platform tailored for the South African market. Real-time technician scheduling, ZAR & 15% VAT invoicing, technician mobile dispatch with digital signature, and PayFast & Yoco payment workflows.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

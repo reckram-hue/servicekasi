@@ -1,0 +1,670 @@
+// ServiceKasi data model
+//
+// Conventions:
+// - Every business-owned row carries `tenantId`. Always query through the
+//   tenant-scoped client in src/lib/db.ts, never the raw client, so one
+//   business can never read another's data.
+// - Money is stored as whole cents (Int), never Float. R1 250,00 = 125000.
+// - Currency / tax come from the Tenant, so the app works outside South Africa.
+// - Languages are BCP-47 codes: en, af, zu, xh, st, tn, nso, ts, ss, ve, nr,
+//   pt, sn, nd, ny, bem, sw, fr ...
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ───────────────────────── Platform / SaaS ─────────────────────────
+
+enum PlanTier {
+  FREE_SOLO
+  TEAM
+  GROWTH
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+}
+
+model Tenant {
+  id           String  @id @default(uuid())
+  slug         String  @unique // public booking URL: servicekasi.co.za/book/<slug>
+  businessName String
+  tradingName  String?
+
+  // Location & money — drives currency formatting and tax rules
+  countryCode     String @default("ZA") // ISO 3166-1 alpha-2
+  currencyCode    String @default("ZAR") // ISO 4217
+  timezone        String @default("Africa/Johannesburg")
+  defaultLanguage String @default("en")
+
+  // Tax. Most small businesses are NOT VAT registered; they must issue a
+  // plain "Invoice" with no VAT, not a "Tax Invoice".
+  vatRegistered    Boolean @default(false)
+  vatNumber        String?
+  defaultTaxRateBp Int     @default(0) // basis points: 1500 = 15%
+  companyRegNumber String?
+
+  phone          String?
+  email          String?
+  whatsappNumber String?
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
+  region         String? // province / district
+  postalCode     String?
+
+  // Banking details printed on invoices (EFT payments)
+  bankName          String?
+  bankAccountHolder String?
+  bankAccountNumber String?
+  bankBranchCode    String?
+
+  logoUrl      String?
+  primaryColor String?
+
+  plan               PlanTier           @default(FREE_SOLO)
+  subscriptionStatus SubscriptionStatus @default(TRIALING)
+  trialEndsAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships   Membership[]
+  clients       Client[]
+  properties    Property[]
+  catalogItems  CatalogItem[]
+  requests      ServiceRequest[]
+  quotes        Quote[]
+  jobs          Job[]
+  visits        Visit[]
+  timeEntries   TimeEntry[]
+  attachments   Attachment[]
+  invoices      Invoice[]
+  payments      Payment[]
+  conversations Conversation[]
+  messages      Message[]
+  sequences     DocumentSequence[]
+  auditLogs     AuditLog[]
+}
+
+// ───────────────────────── People & access ─────────────────────────
+
+enum Role {
+  OWNER // full access incl. billing
+  ADMIN // everything except billing / deleting the business
+  DISPATCHER // schedule, clients, quotes, invoices
+  TECHNICIAN // only their own visits, via the mobile view
+}
+
+// A person. Global (not tenant-owned) so one phone number can belong to
+// several businesses, e.g. a subcontractor working for two companies.
+model User {
+  id                String   @id @default(uuid())
+  name              String
+  phone             String   @unique // E.164, e.g. +27821234567 — primary login
+  phoneVerified     Boolean  @default(false)
+  email             String?  @unique // optional: many technicians don't use email
+  preferredLanguage String   @default("en")
+  isPlatformAdmin   Boolean  @default(false) // ServiceKasi staff (you)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  memberships Membership[]
+}
+
+// A User's seat in one Tenant.
+model Membership {
+  id       String  @id @default(uuid())
+  tenantId String
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     Role
+  active   Boolean @default(true)
+
+  // Costing: what this person costs the business vs. what is charged out
+  hourlyCostCents Int?
+  hourlyBillCents Int?
+  specialties     String[]
+  colour          String? // calendar colour
+
+  createdAt DateTime @default(now())
+
+  visitAssignments VisitAssignment[]
+  timeEntries      TimeEntry[]
+  sentMessages     Message[]
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+}
+
+// ───────────────────────── Customers ─────────────────────────
+
+model Client {
+  id                String  @id @default(uuid())
+  tenantId          String
+  tenant            Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  firstName         String
+  lastName          String?
+  companyName       String?
+  phone             String?
+  email             String?
+  vatNumber         String?
+  preferredLanguage String  @default("en")
+  notes             String?
+
+  // POPIA: record consent before sending marketing / WhatsApp messages
+  whatsappOptIn     Boolean   @default(false)
+  consentRecordedAt DateTime?
+
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  properties    Property[]
+  requests      ServiceRequest[]
+  quotes        Quote[]
+  jobs          Job[]
+  invoices      Invoice[]
+  conversations Conversation[]
+
+  @@index([tenantId, lastName])
+  @@index([tenantId, phone])
+}
+
+// A service address. One client can have many (home, rental flat, shop).
+model Property {
+  id            String  @id @default(uuid())
+  tenantId      String
+  tenant        Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId      String
+  client        Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  unitOrComplex String?
+  street        String
+  suburb        String?
+  city          String
+  region        String?
+  postalCode    String?
+  countryCode   String  @default("ZA")
+  latitude      Float?
+  longitude     Float?
+  accessNotes   String? // gate codes, dogs, estate security — sensitive (POPIA)
+
+  requests ServiceRequest[]
+  quotes   Quote[]
+  jobs     Job[]
+
+  @@index([tenantId, clientId])
+}
+
+// Price list: services, materials, call-out fees.
+enum CatalogItemType {
+  SERVICE
+  MATERIAL
+  CALLOUT
+  TRAVEL
+  LABOUR
+}
+
+model CatalogItem {
+  id             String          @id @default(uuid())
+  tenantId       String
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type           CatalogItemType
+  name           String
+  description    String?
+  unitCostCents  Int             @default(0) // what it costs the business
+  unitPriceCents Int // what the client pays, excl. tax
+  taxable        Boolean         @default(true)
+  active         Boolean         @default(true)
+
+  @@index([tenantId, name])
+}
+
+// ───────────────────────── Work lifecycle ─────────────────────────
+// Request (lead) → Quote → Job → Visit(s) → Invoice → Payment
+
+enum RequestSource {
+  MANUAL
+  WEB_BOOKING
+  WHATSAPP
+  GOOGLE_BUSINESS
+  PHONE
+}
+
+enum RequestStatus {
+  NEW
+  CONVERTED
+  DISMISSED
+}
+
+model ServiceRequest {
+  id            String        @id @default(uuid())
+  tenantId      String
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId      String?
+  client        Client?       @relation(fields: [clientId], references: [id])
+  propertyId    String?
+  property      Property?     @relation(fields: [propertyId], references: [id])
+  source        RequestSource @default(MANUAL)
+  status        RequestStatus @default(NEW)
+  // Raw contact details for leads that aren't clients yet
+  contactName   String?
+  contactPhone  String?
+  description   String
+  preferredDate DateTime?
+  createdAt     DateTime      @default(now())
+
+  quotes Quote[]
+  jobs   Job[]
+
+  @@index([tenantId, status])
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  APPROVED
+  CHANGES_REQUESTED
+  DECLINED
+  CONVERTED
+  EXPIRED
+}
+
+model Quote {
+  id           String          @id @default(uuid())
+  tenantId     String
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  number       String // "Q-0001", allocated from DocumentSequence
+  clientId     String
+  client       Client          @relation(fields: [clientId], references: [id])
+  propertyId   String?
+  property     Property?       @relation(fields: [propertyId], references: [id])
+  requestId    String?
+  request      ServiceRequest? @relation(fields: [requestId], references: [id])
+  title        String
+  status       QuoteStatus     @default(DRAFT)
+  notes        String?
+  validUntil   DateTime?
+  depositCents Int             @default(0)
+
+  // Totals snapshot (recalculated from lines while DRAFT)
+  subtotalCents Int @default(0)
+  taxCents      Int @default(0)
+  totalCents    Int @default(0)
+
+  // Public approval link sent to the client (no login needed)
+  publicToken    String    @unique @default(uuid())
+  sentAt         DateTime?
+  approvedAt     DateTime?
+  approvedByName String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines LineItem[]
+  jobs  Job[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+}
+
+enum JobStatus {
+  DRAFT
+  SCHEDULED
+  IN_PROGRESS
+  REQUIRES_INVOICING
+  COMPLETED
+  CANCELLED
+}
+
+enum JobPriority {
+  LOW
+  NORMAL
+  HIGH
+  EMERGENCY
+}
+
+model Job {
+  id          String          @id @default(uuid())
+  tenantId    String
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  number      String // "J-0001"
+  clientId    String
+  client      Client          @relation(fields: [clientId], references: [id])
+  propertyId  String?
+  property    Property?       @relation(fields: [propertyId], references: [id])
+  quoteId     String?
+  quote       Quote?          @relation(fields: [quoteId], references: [id])
+  requestId   String?
+  request     ServiceRequest? @relation(fields: [requestId], references: [id])
+  title       String
+  description String? // written in the tenant's language; translated per-reader
+  category    String?
+  status      JobStatus       @default(DRAFT)
+  priority    JobPriority     @default(NORMAL)
+
+  // Recurring work (pool service, garden, aircon maintenance).
+  // iCal RRULE, e.g. "FREQ=WEEKLY;BYDAY=TU". Null = once-off.
+  recurrenceRule String?
+  recurrenceEnds DateTime?
+
+  estimatedMinutes Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  completedAt      DateTime?
+
+  lines         LineItem[]
+  visits        Visit[]
+  invoices      Invoice[]
+  attachments   Attachment[]
+  conversations Conversation[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+}
+
+enum VisitStatus {
+  SCHEDULED
+  EN_ROUTE
+  ON_SITE
+  COMPLETED
+  CANCELLED
+  NO_ACCESS // client not home / gate locked — very common, worth tracking
+}
+
+// One appointment on the calendar. A Job has one or many Visits.
+model Visit {
+  id              String      @id @default(uuid())
+  tenantId        String
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  jobId           String
+  job             Job         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  startsAt        DateTime
+  endsAt          DateTime
+  allDay          Boolean     @default(false)
+  status          VisitStatus @default(SCHEDULED)
+  instructions    String?
+  completionNotes String?
+
+  // Client sign-off
+  signatureUrl String?
+  signedByName String?
+  signedAt     DateTime?
+
+  updatedAt DateTime @updatedAt
+
+  assignments VisitAssignment[]
+  timeEntries TimeEntry[]
+  attachments Attachment[]
+
+  @@index([tenantId, startsAt])
+  @@index([jobId])
+}
+
+model VisitAssignment {
+  visitId      String
+  visit        Visit      @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@id([visitId, membershipId])
+  @@index([membershipId])
+}
+
+model TimeEntry {
+  id                String     @id @default(uuid())
+  tenantId          String
+  tenant            Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  membershipId      String
+  membership        Membership @relation(fields: [membershipId], references: [id])
+  visitId           String?
+  visit             Visit?     @relation(fields: [visitId], references: [id])
+  startedAt         DateTime
+  endedAt           DateTime? // null while the clock is running
+  notes             String?
+  // Offline sync: id generated on the phone so replays don't duplicate
+  clientGeneratedId String?    @unique
+
+  @@index([tenantId, membershipId, startedAt])
+}
+
+enum AttachmentKind {
+  BEFORE
+  AFTER
+  PARTS
+  DOCUMENT
+  VOICE_NOTE
+}
+
+model Attachment {
+  id                     String         @id @default(uuid())
+  tenantId               String
+  tenant                 Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  jobId                  String?
+  job                    Job?           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  visitId                String?
+  visit                  Visit?         @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  kind                   AttachmentKind
+  url                    String
+  mimeType               String
+  caption                String?
+  uploadedByMembershipId String?
+  clientGeneratedId      String?        @unique
+  createdAt              DateTime       @default(now())
+
+  @@index([tenantId, jobId])
+}
+
+// Shared by quotes, jobs and invoices. Exactly one parent is set.
+model LineItem {
+  id             String          @id @default(uuid())
+  quoteId        String?
+  quote          Quote?          @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  jobId          String?
+  job            Job?            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  invoiceId      String?
+  invoice        Invoice?        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  catalogItemId  String?
+  type           CatalogItemType @default(SERVICE)
+  description    String
+  quantity       Decimal         @default(1) @db.Decimal(10, 2)
+  unitCostCents  Int             @default(0)
+  unitPriceCents Int
+  taxRateBp      Int             @default(0) // copied from tenant at creation; 0 if not VAT registered
+  optional       Boolean         @default(false) // Jobber-style optional add-ons on quotes
+  sortOrder      Int             @default(0)
+
+  @@index([quoteId])
+  @@index([jobId])
+  @@index([invoiceId])
+}
+
+// ───────────────────────── Money in ─────────────────────────
+
+enum InvoiceStatus {
+  DRAFT
+  SENT // once SENT, lines/totals are locked — correct with a credit note
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+enum InvoiceKind {
+  INVOICE // not VAT registered
+  TAX_INVOICE // VAT registered (SARS requirements apply)
+  CREDIT_NOTE
+}
+
+model Invoice {
+  id               String        @id @default(uuid())
+  tenantId         String
+  tenant           Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  number           String // "INV-0001" — sequential, no gaps, never reused
+  kind             InvoiceKind   @default(INVOICE)
+  clientId         String
+  client           Client        @relation(fields: [clientId], references: [id])
+  jobId            String?
+  job              Job?          @relation(fields: [jobId], references: [id])
+  creditsInvoiceId String? // set on credit notes
+  status           InvoiceStatus @default(DRAFT)
+  issuedAt         DateTime?
+  dueAt            DateTime?
+  currencyCode     String
+
+  subtotalCents Int @default(0)
+  taxCents      Int @default(0)
+  totalCents    Int @default(0)
+  paidCents     Int @default(0)
+
+  // Snapshot of seller details at issue time (tax invoices must not change later)
+  sellerSnapshot Json?
+  publicToken    String @unique @default(uuid()) // client pay/view link
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines    LineItem[]
+  payments Payment[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+}
+
+enum PaymentMethod {
+  CASH
+  EFT
+  CARD
+  PAYFAST
+  YOCO
+  OZOW
+  PAYSTACK
+  MOBILE_MONEY // M-Pesa, MTN MoMo, EcoCash, Airtel Money
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+model Payment {
+  id                String        @id @default(uuid())
+  tenantId          String
+  tenant            Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoiceId         String
+  invoice           Invoice       @relation(fields: [invoiceId], references: [id])
+  method            PaymentMethod
+  status            PaymentStatus @default(PENDING)
+  amountCents       Int
+  // Gateway reference — unique so a webhook delivered twice isn't counted twice
+  providerReference String?
+  receivedAt        DateTime?
+  createdAt         DateTime      @default(now())
+
+  @@unique([method, providerReference])
+  @@index([tenantId, invoiceId])
+}
+
+// Gap-free per-tenant numbering for quotes, jobs, invoices, credit notes.
+model DocumentSequence {
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  docType  String // "QUOTE" | "JOB" | "INVOICE" | "CREDIT_NOTE"
+  prefix   String
+  next     Int    @default(1)
+
+  @@id([tenantId, docType])
+}
+
+// ───────────────────────── Multilingual messaging ─────────────────────────
+// Every message keeps its original text and language. Translations are
+// cached per target language so each reader sees their own language, and the
+// original is always available for disputes.
+
+enum Channel {
+  IN_APP
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+enum ConversationKind {
+  TEAM // owner/dispatcher ↔ technicians
+  CLIENT // business ↔ customer
+}
+
+model Conversation {
+  id        String           @id @default(uuid())
+  tenantId  String
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  kind      ConversationKind
+  clientId  String?
+  client    Client?          @relation(fields: [clientId], references: [id])
+  jobId     String?
+  job       Job?             @relation(fields: [jobId], references: [id])
+  title     String?
+  createdAt DateTime         @default(now())
+
+  messages Message[]
+
+  @@index([tenantId, kind])
+}
+
+model Message {
+  id                 String       @id @default(uuid())
+  tenantId           String
+  tenant             Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversationId     String
+  conversation       Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderMembershipId String? // null when sent by the client
+  sender             Membership?  @relation(fields: [senderMembershipId], references: [id])
+  channel            Channel      @default(IN_APP)
+  originalText       String
+  originalLanguage   String // detected or declared
+  voiceNoteUrl       String? // transcribed into originalText
+  externalId         String? // WhatsApp / SMS provider message id
+  clientGeneratedId  String?      @unique
+  createdAt          DateTime     @default(now())
+
+  translations MessageTranslation[]
+
+  @@index([conversationId, createdAt])
+}
+
+model MessageTranslation {
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  language  String
+  text      String
+  model     String // which AI model produced it, for quality tracking
+  createdAt DateTime @default(now())
+
+  @@id([messageId, language])
+}
+
+// ───────────────────────── Audit ─────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId     String?
+  action     String // "invoice.sent", "quote.approved", "client.deleted"
+  entityType String
+  entityId   String
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, entityType, entityId])
+}
