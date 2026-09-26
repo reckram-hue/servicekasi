@@ -105,6 +105,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
                 <div>
                   <div className="font-medium text-slate-100">
                     {j.number} — {j.title}
+                    {j.recurrenceRule && <span className="ml-2 text-xs font-normal text-slate-400">↻ repeats</span>}
                   </div>
                   <div className="text-xs text-slate-400">{displayName(j.client)}</div>
                 </div>

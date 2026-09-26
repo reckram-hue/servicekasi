@@ -392,8 +392,15 @@ model Job {
 
   // Recurring work (pool service, garden, aircon maintenance).
   // iCal RRULE, e.g. "FREQ=WEEKLY;BYDAY=TU". Null = once-off.
-  recurrenceRule String?
-  recurrenceEnds DateTime?
+  // Only the subset in src/lib/recurrence.ts is supported.
+  recurrenceRule           String?
+  recurrenceStart          String? // "YYYY-MM-DD" first visit (DTSTART), business-local date
+  recurrenceEnds           DateTime? // last date a visit may fall on, stored as UTC midnight of that date
+  recurrenceStartTime      String? // "HH:mm", business-local
+  recurrenceEndTime        String? // "HH:mm", business-local
+  recurrenceTechnicianIds  String[] @default([]) // Membership ids assigned to each generated visit
+  recurrenceInstructions   String?
+  recurrenceGeneratedUntil String? // "YYYY-MM-DD" visits exist up to and including this date
 
   estimatedMinutes Int?
   createdAt        DateTime  @default(now())
@@ -432,6 +439,10 @@ model Visit {
   status          VisitStatus @default(SCHEDULED)
   instructions    String?
   completionNotes String?
+  // For visits generated from a recurring job: the "YYYY-MM-DD" date the rule
+  // produced. Kept even if the visit is moved or skipped, so it's never
+  // generated twice. Null for one-off visits.
+  occurrenceDate  String?
 
   // Client sign-off
   signatureUrl String?
@@ -444,6 +455,7 @@ model Visit {
   timeEntries TimeEntry[]
   attachments Attachment[]
 
+  @@unique([jobId, occurrenceDate])
   @@index([tenantId, startsAt])
   @@index([jobId])
 }

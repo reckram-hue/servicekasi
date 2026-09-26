@@ -1,5 +1,6 @@
 import { tenantDb } from '@/lib/db';
-import { addDaysToDateStr, zonedDateTime } from '@/lib/dates';
+import { addDaysToDateStr, todayDateStr, zonedDateTime } from '@/lib/dates';
+import { topUpRecurringVisits } from '@/lib/jobs/recurring';
 import { arriveAction, completeVisitAction, markNoAccessAction, startTravelAction } from '@/lib/jobs/actions';
 
 function displayName(c: { firstName: string; lastName: string | null; companyName: string | null }) {
@@ -48,7 +49,9 @@ export async function TechnicianDay({
   tenant: { id: string; timezone: string };
   membershipId: string;
 }) {
-  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: tenant.timezone });
+  await topUpRecurringVisits(tenant.id, tenant.timezone);
+
+  const todayStr = todayDateStr(tenant.timezone);
   const tomorrowStr = addDaysToDateStr(todayStr, 1);
   const dayAfterStr = addDaysToDateStr(todayStr, 2);
 

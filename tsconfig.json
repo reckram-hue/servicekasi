@@ -38,6 +38,7 @@
   "exclude": [
     "node_modules",
     "prisma/seed.ts",
-    "src/lib/money.test.ts"
+    "src/lib/money.test.ts",
+    "src/lib/recurrence.test.ts"
   ]
 }

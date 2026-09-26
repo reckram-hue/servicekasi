@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
-import { addDaysToDateStr, dateStrDayOfWeek, zonedDateTime } from '@/lib/dates';
+import { addDaysToDateStr, dateStrDayOfWeek, localDateStr, todayDateStr, zonedDateTime } from '@/lib/dates';
+import { publicHolidayName } from '@/lib/holidays';
+import { topUpRecurringVisits } from '@/lib/jobs/recurring';
 
 function displayName(c: { firstName: string; lastName: string | null; companyName: string | null }) {
   const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
@@ -14,7 +16,9 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   const { tenant } = await requireRole();
   const { date: dateParam, range: rangeParam } = await searchParams;
 
-  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: tenant.timezone });
+  await topUpRecurringVisits(tenant.id, tenant.timezone);
+
+  const todayStr = todayDateStr(tenant.timezone);
   const date = dateParam && DATE_RE.test(dateParam) ? dateParam : todayStr;
   const range: 'day' | 'week' = rangeParam === 'week' ? 'week' : 'day';
 
@@ -44,7 +48,9 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
 
   const byTech = new Map<string, typeof visits>();
   for (const t of technicians) byTech.set(t.id, []);
+  const unassigned: typeof visits = [];
   for (const v of visits) {
+    if (v.assignments.length === 0) unassigned.push(v);
     for (const a of v.assignments) {
       if (!byTech.has(a.membershipId)) byTech.set(a.membershipId, []);
       byTech.get(a.membershipId)!.push(v);
@@ -96,6 +102,9 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
           {range === 'day'
             ? rangeStart.toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: tenant.timezone })
             : `${rangeStartStr} – ${addDaysToDateStr(rangeStartStr, 6)}`}
+          {range === 'day' && publicHolidayName(tenant.countryCode, date) && (
+            <span className="ml-2 text-amber-300">⚠ Public holiday: {publicHolidayName(tenant.countryCode, date)}</span>
+          )}
         </p>
 
         {technicians.length === 0 ? (
@@ -104,11 +113,13 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
           </p>
         ) : (
           <div className="space-y-4">
-            {technicians.map((t) => {
-              const list = byTech.get(t.id) ?? [];
+            {[
+              ...technicians.map((t) => ({ key: t.id, name: t.user.name, list: byTech.get(t.id) ?? [] })),
+              ...(unassigned.length > 0 ? [{ key: 'unassigned', name: 'Unassigned', list: unassigned }] : []),
+            ].map(({ key, name, list }) => {
               return (
-                <div key={t.id} className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
-                  <div className="mb-3 font-medium text-slate-100">{t.user.name}</div>
+                <div key={key} className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
+                  <div className="mb-3 font-medium text-slate-100">{name}</div>
                   {list.length === 0 ? (
                     <p className="text-sm text-slate-500">No visits.</p>
                   ) : (
@@ -124,12 +135,20 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
                             </div>
                             <Link href={`/jobs/${v.job.id}`} className="text-xs text-amber-400 hover:underline">
                               {v.job.number} — {v.job.title}
+                              {v.occurrenceDate && ' ↻'}
                             </Link>
                             <div className="text-xs text-slate-500">{displayName(v.job.client)}</div>
                           </div>
-                          {isDoubleBooked(list, i) && (
-                            <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-300">Double-booked</span>
-                          )}
+                          <div className="flex flex-col items-end gap-1">
+                            {isDoubleBooked(list, i) && (
+                              <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-300">Double-booked</span>
+                            )}
+                            {range === 'week' && publicHolidayName(tenant.countryCode, localDateStr(v.startsAt, tenant.timezone)) && (
+                              <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-300">
+                                {publicHolidayName(tenant.countryCode, localDateStr(v.startsAt, tenant.timezone))}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>

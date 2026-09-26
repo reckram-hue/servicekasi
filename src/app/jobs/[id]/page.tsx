@@ -3,9 +3,13 @@ import { notFound } from 'next/navigation';
 import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
-import { isoDateDaysFromNow } from '@/lib/dates';
-import { cancelVisitAction } from '@/lib/jobs/actions';
+import { formatDateStr, isoDateDaysFromNow, localDateStr, localTimeStr, todayDateStr, zonedDateTime } from '@/lib/dates';
+import { describeRule, patternOf } from '@/lib/recurrence';
+import { publicHolidayName } from '@/lib/holidays';
+import { cancelVisitAction, stopRecurrenceAction } from '@/lib/jobs/actions';
+import { recurrenceEndsStr, topUpRecurringVisits } from '@/lib/jobs/recurring';
 import { AddVisitForm } from '@/components/jobs/AddVisitForm';
+import { RecurrenceForm } from '@/components/jobs/RecurrenceForm';
 
 function displayName(c: { firstName: string; lastName: string | null; companyName: string | null }) {
   const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
@@ -34,6 +38,8 @@ const VISIT_STATUS_STYLES: Record<string, string> = {
   NO_ACCESS: 'bg-red-500/10 text-red-300',
 };
 
+const LONG_DATE: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+
 const PRIORITY_STYLES: Record<string, string> = {
   LOW: 'bg-slate-800 text-slate-400',
   NORMAL: 'bg-slate-800 text-slate-300',
@@ -44,6 +50,9 @@ const PRIORITY_STYLES: Record<string, string> = {
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { tenant } = await requireRole();
   const { id } = await params;
+  const tz = tenant.timezone;
+
+  await topUpRecurringVisits(tenant.id, tz);
 
   const db = tenantDb(tenant.id);
   const [job, technicians] = await Promise.all([
@@ -64,8 +73,77 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   ]);
   if (!job) notFound();
 
+  const today = todayDateStr(tz);
+  const startOfToday = zonedDateTime(today, '00:00');
+  const techOptions = technicians.map((t) => ({ id: t.id, name: t.user.name }));
   const totalCents = job.lines.reduce((sum, l) => sum + Math.round(Number(l.quantity) * l.unitPriceCents), 0);
-  const canSchedule = job.status !== 'CANCELLED' && job.status !== 'COMPLETED';
+  const isOpen = job.status !== 'CANCELLED' && job.status !== 'COMPLETED';
+
+  const upcoming = job.visits.filter((v) => v.endsAt >= startOfToday);
+  const past = job.visits.filter((v) => v.endsAt < startOfToday).reverse();
+
+  const recurrenceEnds = recurrenceEndsStr(job);
+  const recurrenceStopped = !!recurrenceEnds && recurrenceEnds <= today;
+  const recurrenceTechNames = job.recurrenceTechnicianIds
+    .map((tid) => technicians.find((t) => t.id === tid)?.user.name)
+    .filter(Boolean)
+    .join(', ');
+
+  const jobId = job.id;
+  type VisitItem = (typeof upcoming)[number];
+
+  const VisitRow = ({ v }: { v: VisitItem }) => {
+    const date = localDateStr(v.startsAt, tz);
+    const holiday = v.status !== 'CANCELLED' ? publicHolidayName(tenant.countryCode, date) : null;
+    return (
+      <div className="rounded-lg border border-slate-800 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <div className="text-sm font-medium text-slate-100">
+              {formatDateStr(date)} · {localTimeStr(v.startsAt, tz)}–{localTimeStr(v.endsAt, tz)}
+              {v.occurrenceDate && <span className="ml-1 text-slate-500" title="Part of a repeating schedule">↻</span>}
+            </div>
+            <div className="text-xs text-slate-400">{v.assignments.map((a) => a.membership.user.name).join(', ') || 'Unassigned'}</div>
+            {holiday && <div className="mt-1 text-xs text-amber-300">⚠ Public holiday: {holiday}</div>}
+            {v.instructions && <div className="mt-1 text-xs text-slate-500">{v.instructions}</div>}
+            {v.completionNotes && <div className="mt-1 text-xs text-slate-400">Technician: {v.completionNotes}</div>}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${VISIT_STATUS_STYLES[v.status] ?? 'bg-slate-800 text-slate-300'}`}>
+              {v.occurrenceDate && v.status === 'CANCELLED' ? 'SKIPPED' : v.status.replace('_', ' ')}
+            </span>
+            {v.status === 'SCHEDULED' && (
+              <form action={cancelVisitAction}>
+                <input type="hidden" name="visitId" value={v.id} />
+                <input type="hidden" name="jobId" value={jobId} />
+                <button type="submit" className="rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-red-400 hover:bg-red-500/10">
+                  {v.occurrenceDate ? 'Skip' : 'Cancel'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+        {v.status === 'SCHEDULED' && (
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs text-amber-400">Edit this visit only</summary>
+            <AddVisitForm
+              jobId={jobId}
+              technicians={techOptions}
+              defaultDate={date}
+              visit={{
+                id: v.id,
+                date,
+                startTime: localTimeStr(v.startsAt, tz),
+                endTime: localTimeStr(v.endsAt, tz),
+                technicianIds: v.assignments.map((a) => a.membershipId),
+                instructions: v.instructions ?? '',
+              }}
+            />
+          </details>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
@@ -121,51 +199,90 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           </div>
         )}
 
+        {job.recurrenceRule ? (
+          <div className="mb-6 rounded-xl border border-slate-800 p-4">
+            <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-slate-500">↻ Repeating</h2>
+            <p className="text-slate-100">
+              {describeRule(job.recurrenceRule)}, {job.recurrenceStartTime}–{job.recurrenceEndTime}
+            </p>
+            <p className="text-sm text-slate-400">
+              {recurrenceTechNames || 'No technician'} ·{' '}
+              {recurrenceStopped
+                ? `ended ${formatDateStr(recurrenceEnds!, LONG_DATE)}`
+                : `from ${job.recurrenceStart ? formatDateStr(job.recurrenceStart, LONG_DATE) : '—'}${recurrenceEnds ? ` until ${formatDateStr(recurrenceEnds, LONG_DATE)}` : ''}`}
+            </p>
+            {recurrenceStopped && <p className="mt-2 text-sm text-amber-300">This contract has ended — no more visits will be added.</p>}
+
+            {isOpen && (
+              <>
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-sm text-amber-400">
+                    {recurrenceStopped ? 'Restart or change the schedule' : 'Change all future visits'}
+                  </summary>
+                  <div className="mt-3">
+                    <RecurrenceForm
+                      jobId={job.id}
+                      technicians={techOptions}
+                      today={today}
+                      countryCode={tenant.countryCode}
+                      current={{
+                        pattern: patternOf(job.recurrenceRule) ?? 'WEEKLY',
+                        firstDate: job.recurrenceStart ?? today,
+                        startTime: job.recurrenceStartTime ?? '',
+                        endTime: job.recurrenceEndTime ?? '',
+                        endsOn: recurrenceStopped ? '' : (recurrenceEnds ?? ''),
+                        technicianIds: job.recurrenceTechnicianIds,
+                        instructions: job.recurrenceInstructions ?? '',
+                      }}
+                    />
+                  </div>
+                </details>
+                {!recurrenceStopped && (
+                  <form action={stopRecurrenceAction} className="mt-3">
+                    <input type="hidden" name="jobId" value={job.id} />
+                    <button type="submit" className="rounded-lg border border-red-900 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-300 hover:bg-red-500/20">
+                      Stop contract after today
+                    </button>
+                  </form>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
+          isOpen && (
+            <details className="mb-6 rounded-xl border border-slate-800 p-4">
+              <summary className="cursor-pointer text-sm font-medium text-amber-400">↻ Repeat this job (weekly, fortnightly or monthly)</summary>
+              <div className="mt-3">
+                <RecurrenceForm jobId={job.id} technicians={techOptions} today={today} countryCode={tenant.countryCode} />
+              </div>
+            </details>
+          )
+        )}
+
         <div className="mb-6 rounded-xl border border-slate-800 p-4">
           <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-slate-500">Visits</h2>
-          {job.visits.length === 0 ? (
-            <p className="text-sm text-slate-500">No visits scheduled yet.</p>
+          {upcoming.length === 0 ? (
+            <p className="text-sm text-slate-500">No upcoming visits.</p>
           ) : (
             <div className="space-y-2">
-              {job.visits.map((v) => (
-                <div key={v.id} className="flex items-center justify-between rounded-lg border border-slate-800 p-3">
-                  <div>
-                    <div className="text-sm font-medium text-slate-100">
-                      {v.startsAt.toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short', timeZone: tenant.timezone })}
-                      {' · '}
-                      {v.startsAt.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', timeZone: tenant.timezone })}–
-                      {v.endsAt.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', timeZone: tenant.timezone })}
-                    </div>
-                    <div className="text-xs text-slate-400">{v.assignments.map((a) => a.membership.user.name).join(', ') || 'Unassigned'}</div>
-                    {v.instructions && <div className="mt-1 text-xs text-slate-500">{v.instructions}</div>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${VISIT_STATUS_STYLES[v.status] ?? 'bg-slate-800 text-slate-300'}`}>
-                      {v.status.replace('_', ' ')}
-                    </span>
-                    {v.status === 'SCHEDULED' && (
-                      <form action={cancelVisitAction}>
-                        <input type="hidden" name="visitId" value={v.id} />
-                        <input type="hidden" name="jobId" value={job.id} />
-                        <button type="submit" className="rounded-md bg-slate-800 px-2 py-1 text-xs font-medium text-red-400 hover:bg-red-500/10">
-                          Cancel
-                        </button>
-                      </form>
-                    )}
-                  </div>
-                </div>
+              {upcoming.map((v) => (
+                <VisitRow key={v.id} v={v} />
               ))}
             </div>
           )}
+          {past.length > 0 && (
+            <details className="mt-4">
+              <summary className="cursor-pointer text-sm text-slate-400">Past visits ({past.length})</summary>
+              <div className="mt-2 space-y-2">
+                {past.map((v) => (
+                  <VisitRow key={v.id} v={v} />
+                ))}
+              </div>
+            </details>
+          )}
         </div>
 
-        {canSchedule && (
-          <AddVisitForm
-            jobId={job.id}
-            technicians={technicians.map((t) => ({ id: t.id, name: t.user.name }))}
-            defaultDate={isoDateDaysFromNow(1)}
-          />
-        )}
+        {isOpen && <AddVisitForm jobId={job.id} technicians={techOptions} defaultDate={isoDateDaysFromNow(1)} />}
       </div>
     </div>
   );
