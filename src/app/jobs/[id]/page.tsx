@@ -9,6 +9,7 @@ import { publicHolidayName } from '@/lib/holidays';
 import { cancelVisitAction, deleteAttachmentAction, stopRecurrenceAction } from '@/lib/jobs/actions';
 import { recurrenceEndsStr, topUpRecurringVisits } from '@/lib/jobs/recurring';
 import { createInvoiceFromJobAction } from '@/lib/invoices/actions';
+import { INVOICE_STATUS_LABELS, INVOICE_STATUS_STYLES } from '@/lib/invoices/status';
 import { AddVisitForm } from '@/components/jobs/AddVisitForm';
 import { RecurrenceForm } from '@/components/jobs/RecurrenceForm';
 
@@ -28,14 +29,6 @@ const STATUS_STYLES: Record<string, string> = {
   REQUIRES_INVOICING: 'bg-purple-500/10 text-purple-300',
   COMPLETED: 'bg-emerald-500/10 text-emerald-300',
   CANCELLED: 'bg-red-500/10 text-red-300',
-};
-
-const INVOICE_STATUS_STYLES: Record<string, string> = {
-  DRAFT: 'bg-slate-800 text-slate-300',
-  SENT: 'bg-blue-500/10 text-blue-300',
-  PARTIALLY_PAID: 'bg-amber-500/10 text-amber-300',
-  PAID: 'bg-emerald-500/10 text-emerald-300',
-  VOID: 'bg-red-500/10 text-red-300',
 };
 
 const VISIT_STATUS_STYLES: Record<string, string> = {
@@ -271,8 +264,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                   <span className="text-slate-100">{inv.number ?? 'Draft'}</span>
                   <span className="flex items-center gap-2">
                     <span className="text-slate-400">{formatMoney(inv.totalCents, tenant.currencyCode)}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${INVOICE_STATUS_STYLES[inv.status] ?? 'bg-slate-800 text-slate-300'}`}>
-                      {inv.status.replace('_', ' ')}
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${INVOICE_STATUS_STYLES[inv.status]}`}>
+                      {INVOICE_STATUS_LABELS[inv.status]}
                     </span>
                   </span>
                 </Link>

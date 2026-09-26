@@ -1,12 +1,12 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { startTransition, useActionState, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import type { CatalogItemType } from '@prisma/client';
 import { createInvoiceAction, updateInvoiceAction, type FormState } from '@/lib/invoices/actions';
 import { documentTotals, formatMoney, parseMoneyInput, type MoneyLineInput } from '@/lib/money';
 import { CATALOG_ITEM_TYPE_LABELS } from '@/lib/catalogItemTypes';
-import { FormMessage, Select, SubmitButton, TextArea } from '@/components/auth/ui';
+import { Field, FormMessage, Select, SubmitButton, TextArea } from '@/components/auth/ui';
 
 export type CatalogItemOption = {
   id: string;
@@ -40,6 +40,8 @@ function blankLine(): LineRow {
   };
 }
 
+const noopSubscribe = () => () => {};
+
 function toMoneyLine(row: LineRow, vatRegistered: boolean, defaultTaxRateBp: number): MoneyLineInput {
   return {
     quantity: parseFloat(row.quantity) || 0,
@@ -56,8 +58,11 @@ export function InvoiceBuilder({
   tenant,
   catalogItems,
   initial,
+  issue,
 }: {
   invoiceId?: string;
+  /** Only for a saved draft: today, and today + the business's payment terms, as "YYYY-MM-DD". */
+  issue?: { today: string; defaultDueDate: string; isTaxInvoice: boolean };
   /** Set when this invoice was created from a job — shown for context, never editable here. */
   job?: { id: string; number: string };
   client: { id: string; name: string; properties: { id: string; label: string }[] };
@@ -77,8 +82,23 @@ export function InvoiceBuilder({
   const [propertyId, setPropertyId] = useState(initial?.propertyId ?? client.properties[0]?.id ?? '');
   const [lines, setLines] = useState<LineRow[]>(initial?.lines?.length ? initial.lines : [blankLine()]);
   const [catalogPick, setCatalogPick] = useState('');
+  const [dueDate, setDueDate] = useState(issue?.defaultDueDate ?? '');
 
   const e = state?.fieldErrors;
+
+  // Submitting through a handler rather than <form action> skips React's
+  // automatic form reset, which would snap the controlled property <select>
+  // back to its first option and drop the property on the next save.
+  // Until the page is interactive the handler isn't attached, and a tap would
+  // do a plain browser submit instead, so keep the buttons disabled till then.
+  const interactive = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  const busy = pending || !interactive;
+
+  function handleSubmit(ev: React.FormEvent<HTMLFormElement>) {
+    ev.preventDefault();
+    const formData = new FormData(ev.currentTarget, (ev.nativeEvent as SubmitEvent).submitter);
+    startTransition(() => action(formData));
+  }
 
   function updateLine(key: string, patch: Partial<LineRow>) {
     setLines((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -126,7 +146,7 @@ export function InvoiceBuilder({
   );
 
   return (
-    <form action={action}>
+    <form onSubmit={handleSubmit}>
       {isEdit && <input type="hidden" name="id" value={invoiceId} />}
       <input type="hidden" name="clientId" value={client.id} />
       <input type="hidden" name="linesJson" value={linesJson} />
@@ -250,7 +270,7 @@ export function InvoiceBuilder({
         </div>
       </div>
 
-      <TextArea label="Notes (optional)" name="notes" value={notes} onChange={(ev) => setNotes(ev.target.value)} errors={e?.notes} />
+      <TextArea label="Notes for the client (printed on the invoice)" name="notes" value={notes} onChange={(ev) => setNotes(ev.target.value)} errors={e?.notes} />
 
       <div className="mb-6 rounded-xl border border-slate-800 p-4">
         <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-slate-500">Totals (shown to client)</h2>
@@ -289,7 +309,7 @@ export function InvoiceBuilder({
       </div>
 
       <div className="flex gap-3">
-        <SubmitButton pending={pending}>{isEdit ? 'Save changes' : 'Create invoice'}</SubmitButton>
+        <SubmitButton pending={busy}>{isEdit ? 'Save draft' : 'Create invoice'}</SubmitButton>
         <button
           type="button"
           onClick={() => router.back()}
@@ -298,6 +318,38 @@ export function InvoiceBuilder({
           Cancel
         </button>
       </div>
+
+      {issue && (
+        <div className="mt-8 rounded-xl border border-amber-800/60 bg-amber-500/5 p-4">
+          <h2 className="mb-1 text-sm font-medium uppercase tracking-wide text-amber-300">Issue this invoice</h2>
+          <p className="mb-3 text-xs text-slate-400">
+            Issuing gives it the next {issue.isTaxInvoice ? 'tax invoice' : 'invoice'} number and locks it for good. After
+            that, mistakes are corrected with a credit note.
+          </p>
+          <Field
+            label="Payment due"
+            name="dueDate"
+            type="date"
+            min={issue.today}
+            value={dueDate}
+            onChange={(ev) => setDueDate(ev.target.value)}
+            errors={e?.dueDate}
+            hint={dueDate === issue.today ? 'Due on receipt.' : undefined}
+          />
+          <button
+            type="submit"
+            name="intent"
+            value="issue"
+            disabled={busy}
+            onClick={(ev) => {
+              if (!window.confirm('Issue this invoice? It gets its number and can no longer be edited.')) ev.preventDefault();
+            }}
+            className="w-full rounded-lg bg-amber-500 px-4 py-2.5 font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-60"
+          >
+            Save &amp; issue invoice
+          </button>
+        </div>
+      )}
     </form>
   );
 }

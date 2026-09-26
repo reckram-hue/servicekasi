@@ -8,6 +8,8 @@ import { prisma } from '@/lib/prisma';
 import { tenantDb } from '@/lib/db';
 import { requireRole } from '@/lib/auth/session';
 import { documentTotals, type MoneyLineInput } from '@/lib/money';
+import { addDaysToDateStr, todayDateStr } from '@/lib/dates';
+import { issueInvoice } from '@/lib/invoices/issue';
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string[] | undefined>; ok?: string } | undefined;
 
@@ -106,10 +108,19 @@ export async function createInvoiceAction(_: FormState, formData: FormData): Pro
   redirect(`/invoices/${invoice.id}`);
 }
 
-const UpdateInvoiceFormSchema = InvoiceFormSchema.and(z.object({ id: z.string().uuid() }));
+const UpdateInvoiceFormSchema = InvoiceFormSchema.and(
+  z.object({
+    id: z.string().uuid(),
+    intent: z.enum(['save', 'issue']).default('save'),
+    dueDate: z.union([z.iso.date(), z.literal('')]).optional(),
+  })
+);
 
+const LOCKED_ERROR = 'This invoice has been issued and is locked. Correct it with a credit note.';
+
+/** Saves a draft; with intent "issue", then issues exactly what was just saved. */
 export async function updateInvoiceAction(_: FormState, formData: FormData): Promise<FormState> {
-  const { tenant } = await requireRole();
+  const { tenant, user } = await requireRole();
   const parsed = UpdateInvoiceFormSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
   const d = parsed.data;
@@ -117,12 +128,17 @@ export async function updateInvoiceAction(_: FormState, formData: FormData): Pro
   const { data: lines, error: linesError } = parseLines(d.linesJson);
   if (linesError) return { error: linesError };
 
+  if (d.intent === 'issue') {
+    const today = todayDateStr(tenant.timezone);
+    if (!d.dueDate || d.dueDate < today || d.dueDate > addDaysToDateStr(today, 365)) {
+      return { fieldErrors: { dueDate: ['Choose a due date between today and a year from now.'] } };
+    }
+  }
+
   const db = tenantDb(tenant.id);
   const existing = await db.invoice.findUnique({ where: { id: d.id } });
   if (!existing) return { error: 'Invoice not found.' };
-  if (existing.status !== 'DRAFT') {
-    return { error: 'This invoice has been issued and is locked. Correct it with a credit note.' };
-  }
+  if (existing.status !== 'DRAFT') return { error: LOCKED_ERROR };
 
   if (d.propertyId) {
     const property = await prisma.property.findFirst({ where: { id: d.propertyId, tenantId: tenant.id, clientId: existing.clientId } });
@@ -131,9 +147,16 @@ export async function updateInvoiceAction(_: FormState, formData: FormData): Pro
 
   const { rows, totals } = buildLinesAndTotals(lines!, tenant);
 
-  await prisma.$transaction([
-    prisma.lineItem.deleteMany({ where: { invoiceId: d.id } }),
-    prisma.invoice.update({
+  // Lock the row and re-check it's still a draft, so an issue happening at
+  // the same moment can't be followed by this save rewriting its lines.
+  const saved = await prisma.$transaction(async (tx) => {
+    const locked = await tx.$queryRaw<{ id: string }[]>`
+      SELECT "id" FROM "Invoice"
+      WHERE "id" = ${d.id} AND "tenantId" = ${tenant.id} AND "status" = 'DRAFT'
+      FOR UPDATE`;
+    if (locked.length === 0) return false;
+    await tx.lineItem.deleteMany({ where: { invoiceId: d.id } });
+    await tx.invoice.update({
       where: { id: d.id },
       data: {
         propertyId: d.propertyId || null,
@@ -143,12 +166,22 @@ export async function updateInvoiceAction(_: FormState, formData: FormData): Pro
         totalCents: totals.totalCents,
         lines: { create: rows },
       },
-    }),
-  ]);
+    });
+    return true;
+  });
+  if (!saved) return { error: LOCKED_ERROR };
 
   revalidatePath('/invoices');
   revalidatePath(`/invoices/${d.id}`);
-  return { ok: 'Saved.' };
+  if (d.intent !== 'issue') return { ok: 'Saved.' };
+
+  const result = await prisma.$transaction((tx) =>
+    issueInvoice(tx, { tenantId: tenant.id, invoiceId: d.id, dueDate: d.dueDate!, userId: user.id })
+  );
+  if ('error' in result) return { error: `Your changes are saved, but the invoice wasn't issued: ${result.error}` };
+
+  if (existing.jobId) revalidatePath(`/jobs/${existing.jobId}`);
+  redirect(`/invoices/${d.id}`);
 }
 
 /** "Create invoice" on a job: copies the job's client, property and lines into a fresh draft. */
@@ -199,10 +232,7 @@ export async function deleteInvoiceAction(formData: FormData): Promise<void> {
   const { tenant } = await requireRole();
   const id = String(formData.get('id') ?? '');
 
-  const db = tenantDb(tenant.id);
-  const existing = await db.invoice.findUnique({ where: { id } });
-  if (!existing || existing.status !== 'DRAFT') return;
-
-  await db.invoice.delete({ where: { id } });
+  // One conditional statement, so an invoice issued a moment ago is never deleted.
+  await tenantDb(tenant.id).invoice.deleteMany({ where: { id, status: 'DRAFT' } });
   revalidatePath('/invoices');
 }

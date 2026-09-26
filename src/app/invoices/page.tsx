@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
 import { deleteInvoiceAction } from '@/lib/invoices/actions';
+import { INVOICE_STATUS_LABELS, INVOICE_STATUS_STYLES, isInvoiceOverdue } from '@/lib/invoices/status';
 
 const STATUS_TABS: { value: string; label: string }[] = [
   { value: '', label: 'All' },
@@ -13,14 +14,6 @@ const STATUS_TABS: { value: string; label: string }[] = [
   { value: 'PAID', label: 'Paid' },
   { value: 'VOID', label: 'Void' },
 ];
-
-const STATUS_STYLES: Record<string, string> = {
-  DRAFT: 'bg-slate-800 text-slate-300',
-  SENT: 'bg-blue-500/10 text-blue-300',
-  PARTIALLY_PAID: 'bg-amber-500/10 text-amber-300',
-  PAID: 'bg-emerald-500/10 text-emerald-300',
-  VOID: 'bg-red-500/10 text-red-300',
-};
 
 function displayName(c: { firstName: string; lastName: string | null; companyName: string | null }) {
   const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
@@ -104,11 +97,19 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
                       {inv.number ?? 'Draft'} — {displayName(inv.client)}
                     </Link>
                   </div>
-                  <div className="text-xs text-slate-400">{formatMoney(inv.totalCents, tenant.currencyCode)}</div>
+                  <div className="text-xs text-slate-400">
+                    {formatMoney(inv.totalCents, tenant.currencyCode)}
+                    {inv.dueAt && inv.status !== 'DRAFT' && inv.status !== 'PAID' && inv.status !== 'VOID' && (
+                      <> · due {inv.dueAt.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', timeZone: 'UTC' })}</>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${STATUS_STYLES[inv.status] ?? 'bg-slate-800 text-slate-300'}`}>
-                    {inv.status.replace('_', ' ')}
+                  {isInvoiceOverdue(inv) && (
+                    <span className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-medium text-red-300">Overdue</span>
+                  )}
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${INVOICE_STATUS_STYLES[inv.status]}`}>
+                    {INVOICE_STATUS_LABELS[inv.status]}
                   </span>
                   <Link href={`/invoices/${inv.id}`} className="rounded-md bg-slate-800 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700">
                     Open
