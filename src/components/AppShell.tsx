@@ -12,6 +12,7 @@ import {
   INITIAL_INVOICES,
 } from "@/data/mockData";
 import { INITIAL_TENANTS } from "@/data/tenantMockData";
+import { formatMoney } from "@/lib/money";
 
 // Dynamically import AdminDashboard with SSR disabled to satisfy Leaflet
 const AdminDashboard = dynamic(
@@ -19,9 +20,15 @@ const AdminDashboard = dynamic(
   { ssr: false }
 );
 
-type AppShellProps = { userName: string; businessName: string; role: string; logout: () => Promise<void> };
+type AppShellProps = {
+  userName: string;
+  businessName: string;
+  role: string;
+  logout: () => Promise<void>;
+  moneyOwed?: { outstandingCents: number; overdueCents: number; overdueCount: number; currencyCode: string };
+};
 
-export function AppShell({ userName, businessName, role, logout }: AppShellProps) {
+export function AppShell({ userName, businessName, role, logout, moneyOwed }: AppShellProps) {
   const [activeTab, setActiveTab] = useState<any>("dashboard");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [currentRole, setCurrentRole] = useState<any>(role);
@@ -67,6 +74,7 @@ export function AppShell({ userName, businessName, role, logout }: AppShellProps
             <Link href="/quotes" className="text-amber-400 hover:underline">Quotes</Link>
             <Link href="/jobs" className="text-amber-400 hover:underline">Jobs</Link>
             <Link href="/invoices" className="text-amber-400 hover:underline">Invoices</Link>
+            <Link href="/invoices/overdue" className="text-amber-400 hover:underline">Reminders</Link>
             <Link href="/schedule" className="text-amber-400 hover:underline">Schedule</Link>
             <Link href="/team" className="text-amber-400 hover:underline">Team</Link>
             <Link href="/settings/business" className="text-amber-400 hover:underline">Business</Link>
@@ -75,6 +83,30 @@ export function AppShell({ userName, businessName, role, logout }: AppShellProps
             <Link href="/settings/security" className="text-amber-400 hover:underline">Security</Link>
             <form action={logout}><button className="text-slate-300 hover:text-white">Log out</button></form>
           </div>
+          {moneyOwed && (
+            <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                <div className="flex items-center justify-between text-xs text-slate-500">Outstanding</div>
+                <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-slate-100">
+                  {formatMoney(moneyOwed.outstandingCents, moneyOwed.currencyCode)}
+                </div>
+              </div>
+              <Link
+                href="/invoices/overdue"
+                className="rounded-xl border border-slate-800 bg-slate-900 p-5 hover:border-slate-700"
+              >
+                <div className="flex items-center justify-between text-xs text-slate-500">Overdue</div>
+                <div className={`mt-1 font-mono text-2xl font-bold tabular-nums ${moneyOwed.overdueCents > 0 ? 'text-red-400' : 'text-slate-100'}`}>
+                  {formatMoney(moneyOwed.overdueCents, moneyOwed.currencyCode)}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  {moneyOwed.overdueCount === 0
+                    ? 'Nothing overdue'
+                    : `${moneyOwed.overdueCount} invoice${moneyOwed.overdueCount === 1 ? '' : 's'} · Send reminders →`}
+                </div>
+              </Link>
+            </div>
+          )}
           <AdminDashboard
             jobs={jobs}
             clients={clients}

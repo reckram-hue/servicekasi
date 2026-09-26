@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 import { requireAuth } from '@/lib/auth/session';
 import { logoutAction } from '@/lib/auth/actions';
+import { tenantDb } from '@/lib/db';
+import { moneyOwedSummary } from '@/lib/invoices/overdue';
 import { AppShell } from '@/components/AppShell';
 import { TechnicianDay } from '@/components/technician/TechnicianDay';
 
@@ -26,7 +28,15 @@ export default async function Home() {
     );
   }
 
+  const moneyOwed = await moneyOwedSummary(tenantDb(tenant.id));
+
   return (
-    <AppShell userName={user.name} businessName={tenant.businessName} role={membership.role} logout={logoutAction} />
+    <AppShell
+      userName={user.name}
+      businessName={tenant.businessName}
+      role={membership.role}
+      logout={logoutAction}
+      moneyOwed={{ ...moneyOwed, currencyCode: tenant.currencyCode }}
+    />
   );
 }
