@@ -4,7 +4,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 // check (is the session valid, which business, which role) happens in
 // requireAuth() on each page, because Proxy must stay fast and can't be the
 // only line of defence.
-const PUBLIC_PATHS = ['/login', '/signup'];
+// /q/<token> is the client-facing quote approval page — no login, reached via
+// a WhatsApp link, so it must stay public.
+const PUBLIC_PATHS = ['/login', '/signup', '/q'];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

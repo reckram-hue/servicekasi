@@ -136,7 +136,12 @@ export async function updateQuoteAction(_: FormState, formData: FormData): Promi
   const db = tenantDb(tenant.id);
   const existing = await db.quote.findUnique({ where: { id: d.id } });
   if (!existing) return { error: 'Quote not found.' };
-  if (existing.status !== 'DRAFT') return { error: 'Only draft quotes can be edited. Duplicate it to make changes.' };
+  // Editing a sent quote puts it back to Draft — it must be re-sent to the client.
+  // An approved (or declined/converted) quote is locked; duplicate it instead.
+  const EDITABLE_STATUSES = ['DRAFT', 'SENT', 'CHANGES_REQUESTED'];
+  if (!EDITABLE_STATUSES.includes(existing.status)) {
+    return { error: 'This quote is locked and can no longer be edited. Duplicate it to make changes.' };
+  }
 
   if (d.propertyId) {
     const property = await prisma.property.findFirst({ where: { id: d.propertyId, tenantId: tenant.id, clientId: d.clientId } });
@@ -154,6 +159,8 @@ export async function updateQuoteAction(_: FormState, formData: FormData): Promi
     prisma.quote.update({
       where: { id: d.id },
       data: {
+        status: 'DRAFT',
+        clientMessage: null,
         propertyId: d.propertyId || null,
         title: d.title,
         notes: d.notes || null,
@@ -171,6 +178,19 @@ export async function updateQuoteAction(_: FormState, formData: FormData): Promi
   revalidatePath('/quotes');
   revalidatePath(`/quotes/${d.id}`);
   return { ok: 'Saved.' };
+}
+
+export async function sendQuoteAction(formData: FormData): Promise<void> {
+  const { tenant } = await requireRole();
+  const id = String(formData.get('id') ?? '');
+
+  const db = tenantDb(tenant.id);
+  const existing = await db.quote.findUnique({ where: { id } });
+  if (!existing || (existing.status !== 'DRAFT' && existing.status !== 'CHANGES_REQUESTED')) return;
+
+  await db.quote.update({ where: { id }, data: { status: 'SENT', sentAt: new Date(), clientMessage: null } });
+  revalidatePath(`/quotes/${id}`);
+  revalidatePath('/quotes');
 }
 
 export async function deleteQuoteAction(formData: FormData): Promise<void> {

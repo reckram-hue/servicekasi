@@ -1,9 +1,12 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
 import { isoDateDaysFromNow } from '@/lib/dates';
+import { formatMoney } from '@/lib/money';
 import { QuoteBuilder } from '@/components/quotes/QuoteBuilder';
+import { SendQuoteButton } from '@/components/quotes/SendQuoteButton';
 
 function displayName(c: { firstName: string; lastName: string | null; companyName: string | null }) {
   const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
@@ -14,21 +17,33 @@ function propertyLabel(p: { street: string; suburb: string | null; city: string 
   return [p.street, p.suburb, p.city].filter(Boolean).join(', ');
 }
 
+async function siteOrigin(): Promise<string> {
+  const h = await headers();
+  const host = h.get('host') ?? 'localhost:3000';
+  const protocol = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+  return `${protocol}://${host}`;
+}
+
+const EDITABLE_STATUSES = new Set(['DRAFT', 'SENT', 'CHANGES_REQUESTED']);
+
 export default async function QuoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { tenant } = await requireRole();
   const { id } = await params;
 
   const db = tenantDb(tenant.id);
-  const [quote, catalogItems] = await Promise.all([
+  const [quote, catalogItems, origin] = await Promise.all([
     db.quote.findUnique({
       where: { id },
       include: { client: { include: { properties: true } }, lines: { orderBy: { sortOrder: 'asc' } } },
     }),
     db.catalogItem.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
+    siteOrigin(),
   ]);
   if (!quote) notFound();
 
-  const isDraft = quote.status === 'DRAFT';
+  const isEditable = EDITABLE_STATUSES.has(quote.status);
+  const isLocked = !isEditable;
+  const publicUrl = `${origin}/q/${quote.publicToken}`;
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
@@ -40,16 +55,59 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
           <h1 className="text-2xl font-bold">
             {quote.number} — {quote.title}
           </h1>
-          <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-medium text-slate-300">{quote.status}</span>
+          <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-medium text-slate-300">{quote.status.replace('_', ' ')}</span>
         </div>
 
-        {!isDraft && (
-          <p className="mb-6 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-300">
-            This quote is {quote.status.toLowerCase().replace('_', ' ')} and can no longer be edited here.
+        {quote.status === 'APPROVED' && (
+          <div className="mb-6 rounded-lg bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+            <div className="font-medium">
+              Approved by {quote.approvedByName}
+              {quote.approvedAt && (
+                <>
+                  ,{' '}
+                  {quote.approvedAt.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', timeZone: tenant.timezone })} on{' '}
+                  {quote.approvedAt.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric', timeZone: tenant.timezone })}
+                </>
+              )}
+            </div>
+            <div className="mt-1 text-emerald-200">Approved total: {formatMoney(quote.totalCents, tenant.currencyCode)}</div>
+          </div>
+        )}
+
+        {quote.status === 'CHANGES_REQUESTED' && quote.clientMessage && (
+          <div className="mb-6 rounded-lg bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+            <div className="font-medium">Client requested changes:</div>
+            <p className="mt-1 whitespace-pre-wrap text-amber-200">{quote.clientMessage}</p>
+          </div>
+        )}
+
+        {quote.status === 'DECLINED' && (
+          <div className="mb-6 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            <div className="font-medium">Client declined this quote.</div>
+            {quote.clientMessage && <p className="mt-1 whitespace-pre-wrap text-red-200">{quote.clientMessage}</p>}
+          </div>
+        )}
+
+        {isLocked && (
+          <p className="mb-6 rounded-lg bg-slate-800/50 px-3 py-2 text-sm text-slate-400">
+            This quote is {quote.status.toLowerCase().replace('_', ' ')} and locked. Duplicate it to make changes.
           </p>
         )}
 
-        {isDraft ? (
+        <div className="mb-6">
+          <SendQuoteButton
+            quoteId={quote.id}
+            status={quote.status}
+            publicUrl={publicUrl}
+            clientPhone={quote.client.phone}
+            quoteNumber={quote.number}
+            businessName={tenant.tradingName || tenant.businessName}
+            totalCents={quote.totalCents}
+            currencyCode={tenant.currencyCode}
+          />
+        </div>
+
+        {isEditable ? (
           <QuoteBuilder
             quoteId={quote.id}
             quoteNumber={quote.number}
@@ -87,7 +145,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
             }}
           />
         ) : (
-          <p className="text-slate-400">Sending, client approval and duplicating a locked quote arrive in the next step.</p>
+          <p className="text-sm text-slate-500">Duplicating a locked quote arrives in a later step.</p>
         )}
       </div>
     </div>
