@@ -3,6 +3,16 @@ import { prisma } from '@/lib/prisma';
 import type { BuyerSnapshot, SellerSnapshot } from '@/lib/invoices/snapshot';
 import type { InvoiceDocumentProps } from '@/components/invoices/InvoiceDocument';
 
+/** Issued credit notes against an invoice, as the document lists them. Shared with the owner's page. */
+export const CREDIT_NOTES_SELECT = {
+  where: { kind: 'CREDIT_NOTE', status: { not: 'DRAFT' } },
+  select: { number: true, totalCents: true },
+  orderBy: { issuedAt: 'asc' },
+} as const;
+
+/** On a credit note: the invoice it corrects. */
+export const CREDITS_INVOICE_SELECT = { select: { number: true, kind: true } } as const;
+
 /**
  * Looks up an invoice by its public token for the unauthenticated /i/<token>
  * page. There is no logged-in business here, so tenantDb() cannot apply —
@@ -25,6 +35,7 @@ export async function getPublicInvoiceByToken(token: string) {
       taxCents: true,
       totalCents: true,
       paidCents: true,
+      creditedCents: true,
       notes: true,
       sellerSnapshot: true,
       buyerSnapshot: true,
@@ -46,6 +57,8 @@ export async function getPublicInvoiceByToken(token: string) {
         select: { id: true, description: true, quantity: true, unitPriceCents: true, taxRateBp: true },
         orderBy: { sortOrder: 'asc' },
       },
+      creditNotes: CREDIT_NOTES_SELECT,
+      creditsInvoice: CREDITS_INVOICE_SELECT,
     },
   });
 }
@@ -60,8 +73,11 @@ type IssuedInvoiceFields = {
   taxCents: number;
   totalCents: number;
   paidCents: number;
+  creditedCents: number;
   notes: string | null;
   sellerSnapshot: unknown;
+  creditNotes: { number: string | null; totalCents: number }[];
+  creditsInvoice: { number: string | null; kind: InvoiceDocumentProps['kind'] } | null;
   buyerSnapshot: unknown;
   lines: { id: string; description: string; quantity: { toString(): string }; unitPriceCents: number; taxRateBp: number }[];
 };
@@ -99,6 +115,12 @@ export function invoiceDocumentProps(inv: IssuedInvoiceFields, tenant: TenantDoc
     taxCents: inv.taxCents,
     totalCents: inv.totalCents,
     paidCents: inv.paidCents,
+    creditedCents: inv.creditedCents,
+    credits: inv.creditNotes.map((c) => ({ number: c.number ?? '', totalCents: c.totalCents })),
+    creditNote:
+      inv.kind === 'CREDIT_NOTE' && inv.creditsInvoice
+        ? { invoiceNumber: inv.creditsInvoice.number ?? '', vat: inv.creditsInvoice.kind === 'TAX_INVOICE' }
+        : null,
     notes: inv.notes,
     bank: {
       bankName: tenant.bankName,

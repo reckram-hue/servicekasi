@@ -538,10 +538,13 @@ model LineItem {
   optional       Boolean         @default(false) // Jobber-style optional add-ons on quotes
   selected       Boolean         @default(true) // client ticked/unticked an optional line
   sortOrder      Int             @default(0)
+  // On a credit note line: the invoice line it credits, so the same line can't be credited twice over.
+  creditsLineItemId String?
 
   @@index([quoteId])
   @@index([jobId])
   @@index([invoiceId])
+  @@index([creditsLineItemId])
 }
 
 // ───────────────────────── Money in ─────────────────────────
@@ -574,7 +577,10 @@ model Invoice {
   property         Property?     @relation(fields: [propertyId], references: [id])
   jobId            String?
   job              Job?          @relation(fields: [jobId], references: [id])
-  creditsInvoiceId String? // set on credit notes
+  // Set on credit notes: the invoice this one corrects.
+  creditsInvoiceId String?
+  creditsInvoice   Invoice?      @relation("CreditNotes", fields: [creditsInvoiceId], references: [id])
+  creditNotes      Invoice[]     @relation("CreditNotes")
   status           InvoiceStatus @default(DRAFT)
   issuedAt         DateTime?
   dueAt            DateTime?
@@ -583,7 +589,8 @@ model Invoice {
   subtotalCents Int @default(0)
   taxCents      Int @default(0)
   totalCents    Int @default(0)
-  paidCents     Int @default(0)
+  paidCents     Int @default(0) // net of refunds
+  creditedCents Int @default(0) // sum of issued credit notes against this invoice
 
   // Seller and client details frozen at issue time (tax invoices must not change later)
   sellerSnapshot Json?

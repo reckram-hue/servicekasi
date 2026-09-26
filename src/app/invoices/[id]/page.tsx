@@ -6,7 +6,8 @@ import { tenantDb } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
 import { addDaysToDateStr, todayDateStr } from '@/lib/dates';
 import { invoiceDocumentProps } from '@/lib/invoices/publicQuery';
-import { INVOICE_STATUS_LABELS, INVOICE_STATUS_STYLES, isInvoiceOverdue } from '@/lib/invoices/status';
+import { invoiceBadge, isInvoiceOverdue } from '@/lib/invoices/status';
+import { invoiceBalanceCents } from '@/lib/invoices/payments';
 import { PAYMENT_METHOD_LABELS } from '@/lib/invoices/paymentMethods';
 import { reversePaymentAction } from '@/lib/invoices/actions';
 import { InvoiceBuilder } from '@/components/invoices/InvoiceBuilder';
@@ -45,6 +46,12 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         lines: { orderBy: { sortOrder: 'asc' } },
         payments: { orderBy: { createdAt: 'asc' } },
         job: true,
+        creditNotes: {
+          where: { kind: 'CREDIT_NOTE', status: { not: 'DRAFT' } },
+          select: { id: true, number: true, totalCents: true, issuedAt: true, notes: true },
+          orderBy: { issuedAt: 'asc' },
+        },
+        creditsInvoice: { select: { id: true, number: true, kind: true } },
       },
     }),
     db.catalogItem.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
@@ -57,13 +64,22 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const publicUrl = `${origin}/i/${invoice.publicToken}`;
   const overdue = isInvoiceOverdue(invoice);
   const businessName = tenant.tradingName || tenant.businessName;
-  const balanceCents = invoice.totalCents - invoice.paidCents;
+  const isCreditNote = invoice.kind === 'CREDIT_NOTE';
+  const badge = invoiceBadge(invoice);
+  const balanceCents = invoiceBalanceCents(invoice);
+  const canCredit = !isCreditNote && invoice.status !== 'DRAFT' && invoice.status !== 'VOID' && invoice.creditedCents < invoice.totalCents;
   const dueDay = invoice.dueAt?.toISOString().slice(0, 10);
   const dueText =
     dueDay && invoice.issuedAt && dueDay > invoice.issuedAt.toLocaleDateString('en-CA', { timeZone: tenant.timezone })
       ? `, due ${new Date(`${dueDay}T00:00:00Z`).toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', timeZone: 'UTC' })}`
       : '';
-  const whatsappMessage = `Hi ${invoice.client.firstName}, here's invoice ${invoice.number} from ${businessName} for ${formatMoney(balanceCents, invoice.currencyCode)}${dueText}. View it here: ${publicUrl}`;
+  const whatsappMessage = isCreditNote
+    ? `Hi ${invoice.client.firstName}, here's credit note ${invoice.number} from ${businessName} for ${formatMoney(invoice.totalCents, invoice.currencyCode)} against invoice ${invoice.creditsInvoice?.number}. View it here: ${publicUrl}`
+    : balanceCents > 0
+      ? `Hi ${invoice.client.firstName}, here's invoice ${invoice.number} from ${businessName} for ${formatMoney(balanceCents, invoice.currencyCode)}${dueText}. View it here: ${publicUrl}`
+      : balanceCents < 0
+        ? `Hi ${invoice.client.firstName}, here's invoice ${invoice.number} from ${businessName}. After the credit note, a refund of ${formatMoney(-balanceCents, invoice.currencyCode)} is due to you. View it here: ${publicUrl}`
+        : `Hi ${invoice.client.firstName}, here's invoice ${invoice.number} from ${businessName}. Nothing is owed on it. View it here: ${publicUrl}`;
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100 print:bg-white print:p-0">
@@ -78,11 +94,18 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           </h1>
           <div className="flex items-center gap-2">
             {overdue && <span className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-medium text-red-300">Overdue</span>}
-            <span className={`rounded-full px-3 py-1 text-xs font-medium ${INVOICE_STATUS_STYLES[invoice.status]}`}>
-              {INVOICE_STATUS_LABELS[invoice.status]}
-            </span>
+            <span className={`rounded-full px-3 py-1 text-xs font-medium ${badge.style}`}>{badge.label}</span>
           </div>
         </div>
+
+        {invoice.creditsInvoice && (
+          <p className="mb-6 text-sm text-slate-500 print:hidden">
+            Credits invoice{' '}
+            <Link href={`/invoices/${invoice.creditsInvoice.id}`} className="text-amber-400 hover:underline">
+              {invoice.creditsInvoice.number}
+            </Link>
+          </p>
+        )}
 
         {invoice.job && (
           <p className="mb-6 text-sm text-slate-500 print:hidden">
@@ -100,11 +123,48 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             </div>
             <InvoiceDocument {...doc} />
             <div className="mt-4 flex items-center justify-between gap-3 print:hidden">
-              <p className="text-xs text-slate-500">Issued invoices are locked. Mistakes are corrected with a credit note.</p>
+              <p className="text-xs text-slate-500">
+                {isCreditNote ? 'Credit notes are locked once issued.' : 'Issued invoices are locked. Mistakes are corrected with a credit note.'}
+              </p>
               <PrintButton className="shrink-0 rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700" />
             </div>
 
             <div className="mt-8 space-y-4 print:hidden">
+              {(invoice.creditNotes.length > 0 || canCredit) && (
+                <div className="rounded-xl border border-slate-800 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h2 className="text-sm font-medium uppercase tracking-wide text-slate-500">Credit notes</h2>
+                    {canCredit && (
+                      <Link
+                        href={`/invoices/${invoice.id}/credit`}
+                        className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700"
+                      >
+                        + Credit note
+                      </Link>
+                    )}
+                  </div>
+                  {invoice.creditNotes.length === 0 ? (
+                    <p className="text-xs text-slate-500">Made a mistake, or giving money back? Issue a credit note for some or all of this invoice.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {invoice.creditNotes.map((c) => (
+                        <Link
+                          key={c.id}
+                          href={`/invoices/${c.id}`}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 px-3 py-2 text-sm hover:bg-slate-900"
+                        >
+                          <span>
+                            <span className="font-medium text-slate-100">{c.number}</span>
+                            {c.notes && <span className="ml-2 text-slate-400">{c.notes}</span>}
+                          </span>
+                          <span className="text-slate-300">− {formatMoney(c.totalCents, invoice.currencyCode)}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {invoice.payments.length > 0 && (
                 <div className="rounded-xl border border-slate-800 p-4">
                   <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-slate-500">Payments</h2>
@@ -116,9 +176,10 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                       >
                         <div>
                           <span className={p.reversedAt ? 'line-through' : 'font-medium text-slate-100'}>
-                            {formatMoney(p.amountCents, invoice.currencyCode)}
+                            {formatMoney(Math.abs(p.amountCents), invoice.currencyCode)}
                           </span>
                           <span className="ml-2 text-slate-400">
+                            {p.amountCents < 0 && 'Refund · '}
                             {PAYMENT_METHOD_LABELS[p.method]}
                             {p.reference ? ` · ${p.reference}` : ''} ·{' '}
                             {(p.receivedAt ?? p.createdAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}
@@ -138,8 +199,14 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 </div>
               )}
 
-              {(invoice.status === 'SENT' || invoice.status === 'PARTIALLY_PAID') && balanceCents > 0 && (
-                <RecordPaymentForm key={invoice.paidCents} invoiceId={invoice.id} balanceCents={balanceCents} today={today} />
+              {!isCreditNote && invoice.status !== 'VOID' && balanceCents !== 0 && (
+                <RecordPaymentForm
+                  key={balanceCents}
+                  kind={balanceCents > 0 ? 'payment' : 'refund'}
+                  invoiceId={invoice.id}
+                  amountCents={Math.abs(balanceCents)}
+                  today={today}
+                />
               )}
             </div>
           </>

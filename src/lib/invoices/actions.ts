@@ -10,7 +10,8 @@ import { requireRole } from '@/lib/auth/session';
 import { documentTotals, formatMoney, parseMoneyInput, type MoneyLineInput } from '@/lib/money';
 import { addDaysToDateStr, todayDateStr } from '@/lib/dates';
 import { issueInvoice } from '@/lib/invoices/issue';
-import { recordPayment, reversePayment } from '@/lib/invoices/payments';
+import { invoiceBalanceCents, recordMoneyEntry, reversePayment } from '@/lib/invoices/payments';
+import { issueCreditNote } from '@/lib/invoices/creditNotes';
 import { MANUAL_PAYMENT_METHODS } from '@/lib/invoices/paymentMethods';
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string[] | undefined>; ok?: string } | undefined;
@@ -241,13 +242,14 @@ export async function deleteInvoiceAction(formData: FormData): Promise<void> {
 
 const RecordPaymentSchema = z.object({
   invoiceId: z.string().uuid(),
+  kind: z.enum(['payment', 'refund']).default('payment'),
   amount: z.string().trim().min(1, { error: 'Enter an amount.' }),
   date: z.iso.date({ error: 'Choose a date.' }),
   method: z.enum(MANUAL_PAYMENT_METHODS, { error: 'Choose how it was paid.' }),
   reference: z.string().trim().max(200).optional(),
 });
 
-/** Records a payment the owner took by hand — cash, EFT, or a card machine. */
+/** Records a payment the owner took by hand (cash, EFT, card machine), or a refund paid back to the client. */
 export async function recordPaymentAction(_: FormState, formData: FormData): Promise<FormState> {
   const { tenant, user } = await requireRole();
   const parsed = RecordPaymentSchema.safeParse(Object.fromEntries(formData));
@@ -264,19 +266,21 @@ export async function recordPaymentAction(_: FormState, formData: FormData): Pro
 
   const invoice = await tenantDb(tenant.id).invoice.findUnique({
     where: { id: d.invoiceId },
-    select: { status: true, totalCents: true, paidCents: true, currencyCode: true, jobId: true },
+    select: { kind: true, status: true, totalCents: true, creditedCents: true, paidCents: true, currencyCode: true, jobId: true },
   });
-  if (!invoice) return { error: 'Invoice not found.' };
-  const balanceCents = invoice.totalCents - invoice.paidCents;
-  if (invoice.status === 'DRAFT' || invoice.status === 'VOID' || balanceCents <= 0) {
-    return { error: 'This invoice has no balance to record a payment against.' };
+  if (!invoice || invoice.kind === 'CREDIT_NOTE') return { error: 'Invoice not found.' };
+  const balanceCents = invoiceBalanceCents(invoice);
+  const limitCents = d.kind === 'payment' ? balanceCents : -balanceCents;
+  if (invoice.status === 'DRAFT' || invoice.status === 'VOID' || limitCents <= 0) {
+    return { error: d.kind === 'payment' ? 'Nothing is owed on this invoice.' : 'No refund is due on this invoice.' };
   }
-  if (amountCents > balanceCents) {
-    return { fieldErrors: { amount: [`Can't be more than the balance due, ${formatMoney(balanceCents, invoice.currencyCode)}.`] } };
+  if (amountCents > limitCents) {
+    const what = d.kind === 'payment' ? 'the balance due' : 'the refund due';
+    return { fieldErrors: { amount: [`Can't be more than ${what}, ${formatMoney(limitCents, invoice.currencyCode)}.`] } };
   }
 
   const result = await prisma.$transaction((tx) =>
-    recordPayment(tx, {
+    recordMoneyEntry(tx, d.kind, {
       tenantId: tenant.id,
       invoiceId: d.invoiceId,
       amountCents,
@@ -292,7 +296,7 @@ export async function recordPaymentAction(_: FormState, formData: FormData): Pro
   revalidatePath(`/invoices/${d.invoiceId}`);
   revalidatePath('/invoices');
   if (invoice.jobId) revalidatePath(`/jobs/${invoice.jobId}`);
-  return { ok: 'Payment recorded.' };
+  return { ok: d.kind === 'payment' ? 'Payment recorded.' : 'Refund recorded.' };
 }
 
 const ReversePaymentSchema = z.object({ paymentId: z.string().uuid(), invoiceId: z.string().uuid() });
@@ -311,4 +315,50 @@ export async function reversePaymentAction(formData: FormData): Promise<void> {
   revalidatePath(`/invoices/${d.invoiceId}`);
   revalidatePath('/invoices');
   if (invoice?.jobId) revalidatePath(`/jobs/${invoice.jobId}`);
+}
+
+const CreditNoteSchema = z.object({
+  invoiceId: z.string().uuid(),
+  reason: z.string().trim().min(3, { error: 'Say briefly why you are crediting the client.' }).max(1000),
+  creditsJson: z.string(),
+});
+
+const CreditsSchema = z.array(z.object({ lineItemId: z.string().uuid(), amount: z.string() }));
+
+/** Issues a credit note against an issued invoice, then shows it. */
+export async function createCreditNoteAction(_: FormState, formData: FormData): Promise<FormState> {
+  const { tenant, user } = await requireRole();
+  const parsed = CreditNoteSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+  const d = parsed.data;
+
+  let raw: unknown;
+  try {
+    raw = JSON.parse(d.creditsJson);
+  } catch {
+    return { error: 'Something went wrong reading the amounts. Please try again.' };
+  }
+  const creditsParsed = CreditsSchema.safeParse(raw);
+  if (!creditsParsed.success) return { error: 'Something went wrong reading the amounts. Please try again.' };
+
+  const credits: { lineItemId: string; amountCents: number }[] = [];
+  for (const c of creditsParsed.data) {
+    if (c.amount.trim() === '') continue;
+    const amountCents = parseMoneyInput(c.amount);
+    if (amountCents === null || amountCents < 0) return { error: 'Check the amounts — each must be a number, zero or more.' };
+    credits.push({ lineItemId: c.lineItemId, amountCents });
+  }
+
+  const invoice = await tenantDb(tenant.id).invoice.findUnique({ where: { id: d.invoiceId }, select: { jobId: true } });
+  if (!invoice) return { error: 'Invoice not found.' };
+
+  const result = await prisma.$transaction((tx) =>
+    issueCreditNote(tx, { tenantId: tenant.id, invoiceId: d.invoiceId, reason: d.reason, credits, userId: user.id })
+  );
+  if ('error' in result) return { error: result.error };
+
+  revalidatePath('/invoices');
+  revalidatePath(`/invoices/${d.invoiceId}`);
+  if (invoice.jobId) revalidatePath(`/jobs/${invoice.jobId}`);
+  redirect(`/invoices/${result.id}`);
 }

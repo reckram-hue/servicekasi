@@ -35,7 +35,7 @@ export async function syncJobInvoicingStatus(tx: Prisma.TransactionClient, jobId
   const job = await tx.job.findUnique({ where: { id: jobId }, select: { status: true } });
   if (!job || (job.status !== 'REQUIRES_INVOICING' && job.status !== 'COMPLETED')) return;
 
-  const invoices = await tx.invoice.findMany({ where: { jobId, status: { not: 'VOID' } }, select: { status: true } });
+  const invoices = await tx.invoice.findMany({ where: { jobId, status: { not: 'VOID' }, kind: { not: 'CREDIT_NOTE' } }, select: { status: true } });
   const issued = invoices.filter((i) => i.status !== 'DRAFT');
   const allPaid = issued.length > 0 && issued.every((i) => i.status === 'PAID');
 

@@ -17,6 +17,11 @@ export type InvoiceDocumentProps = {
   taxCents: number;
   totalCents: number;
   paidCents: number;
+  creditedCents: number;
+  /** Credit notes issued against this invoice. */
+  credits: { number: string; totalCents: number }[];
+  /** Set when this document is itself a credit note. */
+  creditNote: { invoiceNumber: string; vat: boolean } | null;
   notes: string | null;
   bank: { bankName: string | null; bankAccountHolder: string | null; bankAccountNumber: string | null; bankBranchCode: string | null } | null;
 };
@@ -26,13 +31,14 @@ const LONG_DATE: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', y
 /** The invoice as a printable page. Shows only what the client may see — never costs or margins. */
 export function InvoiceDocument(p: InvoiceDocumentProps) {
   const money = (cents: number) => formatMoney(cents, p.currencyCode);
-  const isTaxInvoice = p.kind === 'TAX_INVOICE';
+  const cn = p.creditNote;
+  const showVat = p.kind === 'TAX_INVOICE' || !!cn?.vat;
   const issuedDay = p.issuedAt.toLocaleDateString('en-CA', { timeZone: p.timeZone });
   // dueAt is stored as UTC midnight of the chosen date, so format it in UTC.
   const dueDay = p.dueAt?.toISOString().slice(0, 10);
-  const balanceCents = p.totalCents - p.paidCents;
+  const balanceCents = p.totalCents - p.creditedCents - p.paidCents;
   const rates = [...new Set(p.lines.map((l) => l.taxRateBp).filter((r) => r > 0))];
-  const hasUntaxedLines = isTaxInvoice && p.lines.some((l) => l.taxRateBp === 0);
+  const hasUntaxedLines = showVat && p.lines.some((l) => l.taxRateBp === 0);
   const bank = p.bank?.bankAccountNumber ? p.bank : null;
 
   return (
@@ -56,13 +62,19 @@ export function InvoiceDocument(p: InvoiceDocumentProps) {
           {p.seller.companyRegNumber && <div className="text-slate-600">Reg. No. {p.seller.companyRegNumber}</div>}
         </div>
         <div className="text-right">
-          <div className="text-2xl font-bold tracking-wide text-slate-900">{isTaxInvoice ? 'TAX INVOICE' : 'INVOICE'}</div>
+          <div className="text-2xl font-bold tracking-wide text-slate-900">{cn ? 'CREDIT NOTE' : showVat ? 'TAX INVOICE' : 'INVOICE'}</div>
           <dl className="mt-2 grid grid-cols-[auto_auto] justify-end gap-x-3 gap-y-0.5 text-slate-600">
             <dt>Number</dt>
             <dd className="font-medium text-slate-900">{p.number}</dd>
             <dt>Date</dt>
             <dd className="text-slate-900">{formatDay(issuedDay)}</dd>
-            {dueDay && (
+            {cn && (
+              <>
+                <dt>For invoice</dt>
+                <dd className="font-medium text-slate-900">{cn.invoiceNumber}</dd>
+              </>
+            )}
+            {!cn && dueDay && (
               <>
                 <dt>Due</dt>
                 <dd className="text-slate-900">{dueDay <= issuedDay ? 'On receipt' : formatDay(dueDay)}</dd>
@@ -90,7 +102,7 @@ export function InvoiceDocument(p: InvoiceDocumentProps) {
             <th className="py-2 pr-2 font-medium">Description</th>
             <th className="py-2 pr-2 text-right font-medium">Qty</th>
             <th className="py-2 pr-2 text-right font-medium">Unit price</th>
-            <th className="py-2 text-right font-medium">{isTaxInvoice ? 'Amount excl. VAT' : 'Amount'}</th>
+            <th className="py-2 text-right font-medium">{showVat ? 'Amount excl. VAT' : 'Amount'}</th>
           </tr>
         </thead>
         <tbody>
@@ -109,23 +121,28 @@ export function InvoiceDocument(p: InvoiceDocumentProps) {
       </table>
 
       <div className="mt-4 ml-auto max-w-xs space-y-1 tabular-nums">
-        {isTaxInvoice && (
+        {showVat && (
           <>
             <Row label="Subtotal excl. VAT" value={money(p.subtotalCents)} />
             <Row label={rates.length === 1 ? `VAT (${rates[0] / 100}%)` : 'VAT'} value={money(p.taxCents)} />
           </>
         )}
-        <Row label={isTaxInvoice ? 'Total incl. VAT' : 'Total'} value={money(p.totalCents)} strong />
-        {p.paidCents > 0 && (
+        <Row label={`${cn ? 'Total credit' : 'Total'}${showVat ? ' incl. VAT' : ''}`} value={money(p.totalCents)} strong />
+        {!cn && (
           <>
-            <Row label="Paid" value={`− ${money(p.paidCents)}`} />
-            <Row label="Balance due" value={money(balanceCents)} strong />
+            {p.credits.map((c) => (
+              <Row key={c.number} label={`Credit note ${c.number}`} value={`− ${money(c.totalCents)}`} />
+            ))}
+            {p.paidCents !== 0 && <Row label={p.paidCents > 0 ? 'Paid' : 'Refunded'} value={p.paidCents > 0 ? `− ${money(p.paidCents)}` : money(-p.paidCents)} />}
+            {(p.credits.length > 0 || p.paidCents !== 0) && (
+              <Row label={balanceCents < 0 ? 'Refund due to you' : 'Balance due'} value={money(Math.abs(balanceCents))} strong />
+            )}
           </>
         )}
       </div>
       {hasUntaxedLines && <p className="mt-2 text-right text-xs text-slate-500">* No VAT charged on this line.</p>}
 
-      {bank && balanceCents > 0 && (
+      {!cn && bank && balanceCents > 0 && (
         <div className="mt-6 rounded-lg border border-slate-200 p-4 print:break-inside-avoid">
           <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Pay by EFT</div>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 text-slate-700">
@@ -157,6 +174,7 @@ export function InvoiceDocument(p: InvoiceDocumentProps) {
 
       {p.notes && (
         <div className="mt-6 border-t border-slate-200 pt-4 text-slate-600">
+          {cn && <div className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500">Reason for credit</div>}
           <p className="whitespace-pre-wrap">{p.notes}</p>
         </div>
       )}

@@ -9,7 +9,7 @@ import { publicHolidayName } from '@/lib/holidays';
 import { cancelVisitAction, deleteAttachmentAction, stopRecurrenceAction } from '@/lib/jobs/actions';
 import { recurrenceEndsStr, topUpRecurringVisits } from '@/lib/jobs/recurring';
 import { createInvoiceFromJobAction } from '@/lib/invoices/actions';
-import { INVOICE_STATUS_LABELS, INVOICE_STATUS_STYLES } from '@/lib/invoices/status';
+import { invoiceBadge } from '@/lib/invoices/status';
 import { AddVisitForm } from '@/components/jobs/AddVisitForm';
 import { RecurrenceForm } from '@/components/jobs/RecurrenceForm';
 
@@ -264,9 +264,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                   <span className="text-slate-100">{inv.number ?? 'Draft'}</span>
                   <span className="flex items-center gap-2">
                     <span className="text-slate-400">{formatMoney(inv.totalCents, tenant.currencyCode)}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${INVOICE_STATUS_STYLES[inv.status]}`}>
-                      {INVOICE_STATUS_LABELS[inv.status]}
-                    </span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${invoiceBadge(inv).style}`}>{invoiceBadge(inv).label}</span>
                   </span>
                 </Link>
               ))}

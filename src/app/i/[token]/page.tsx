@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getPublicInvoiceByToken, invoiceDocumentProps } from '@/lib/invoices/publicQuery';
 import { isInvoiceOverdue } from '@/lib/invoices/status';
 import { formatMoney } from '@/lib/money';
+import { invoiceBalanceCents } from '@/lib/invoices/payments';
 import { InvoiceDocument } from '@/components/invoices/InvoiceDocument';
 import { PrintButton } from '@/components/invoices/PrintButton';
 
@@ -38,17 +39,30 @@ export default async function PublicInvoicePage({ params }: { params: Promise<{ 
     );
   }
 
-  const balanceCents = invoice.totalCents - invoice.paidCents;
+  const balanceCents = invoiceBalanceCents(invoice);
   const overdue = isInvoiceOverdue(invoice);
+  const settledMessage =
+    balanceCents < 0
+      ? `A refund of ${formatMoney(-balanceCents, invoice.currencyCode)} is due to you.`
+      : invoice.creditedCents >= invoice.totalCents
+        ? 'This invoice has been credited in full. Nothing is owed.'
+        : 'Paid in full. Thank you!';
 
   return (
     <Shell>
-      {invoice.status === 'PAID' && (
-        <div className="mb-4 rounded-xl border border-emerald-800 bg-emerald-500/10 p-4 text-center font-semibold text-emerald-300 print:hidden">
-          Paid in full. Thank you!
+      {doc.creditNote && (
+        <div className="mb-4 rounded-xl border border-slate-700 bg-slate-900 p-4 text-center text-slate-200 print:hidden">
+          Credit note {invoice.number} reduces what you owe on invoice{' '}
+          <span className="font-semibold">{doc.creditNote.invoiceNumber}</span> by{' '}
+          <span className="font-semibold">{formatMoney(invoice.totalCents, invoice.currencyCode)}</span>.
         </div>
       )}
-      {invoice.status !== 'PAID' && (
+      {!doc.creditNote && invoice.status === 'PAID' && (
+        <div className="mb-4 rounded-xl border border-emerald-800 bg-emerald-500/10 p-4 text-center font-semibold text-emerald-300 print:hidden">
+          {settledMessage}
+        </div>
+      )}
+      {!doc.creditNote && invoice.status !== 'PAID' && (
         <div
           className={`mb-4 rounded-xl border p-4 text-center print:hidden ${
             overdue ? 'border-amber-700 bg-amber-500/10 text-amber-200' : 'border-slate-700 bg-slate-900 text-slate-200'
@@ -70,7 +84,7 @@ export default async function PublicInvoicePage({ params }: { params: Promise<{ 
         <PrintButton className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700" />
         {contact && (
           <p className="text-xs text-slate-500">
-            Questions about this invoice? Contact {businessName} on {contact}.
+            Questions about this {doc.creditNote ? 'credit note' : 'invoice'}? Contact {businessName} on {contact}.
           </p>
         )}
       </div>

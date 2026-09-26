@@ -4,7 +4,7 @@ import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
 import { deleteInvoiceAction } from '@/lib/invoices/actions';
-import { INVOICE_STATUS_LABELS, INVOICE_STATUS_STYLES, isInvoiceOverdue } from '@/lib/invoices/status';
+import { invoiceBadge, isInvoiceOverdue } from '@/lib/invoices/status';
 
 const STATUS_TABS: { value: string; label: string }[] = [
   { value: '', label: 'All' },
@@ -13,6 +13,7 @@ const STATUS_TABS: { value: string; label: string }[] = [
   { value: 'PARTIALLY_PAID', label: 'Part-paid' },
   { value: 'PAID', label: 'Paid' },
   { value: 'VOID', label: 'Void' },
+  { value: 'CREDIT_NOTE', label: 'Credit notes' },
 ];
 
 function displayName(c: { firstName: string; lastName: string | null; companyName: string | null }) {
@@ -28,7 +29,12 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   const db = tenantDb(tenant.id);
   const [invoices, clients] = await Promise.all([
     db.invoice.findMany({
-      where: statusFilter ? { status: statusFilter } : undefined,
+      where:
+        status === 'CREDIT_NOTE'
+          ? { kind: 'CREDIT_NOTE' }
+          : statusFilter
+            ? { status: statusFilter, kind: { not: 'CREDIT_NOTE' } }
+            : undefined,
       include: { client: true },
       orderBy: { createdAt: 'desc' },
       take: 200,
@@ -108,9 +114,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
                   {isInvoiceOverdue(inv) && (
                     <span className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-medium text-red-300">Overdue</span>
                   )}
-                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${INVOICE_STATUS_STYLES[inv.status]}`}>
-                    {INVOICE_STATUS_LABELS[inv.status]}
-                  </span>
+                  <span className={`rounded-full px-3 py-1 text-xs font-medium ${invoiceBadge(inv).style}`}>{invoiceBadge(inv).label}</span>
                   <Link href={`/invoices/${inv.id}`} className="rounded-md bg-slate-800 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700">
                     Open
                   </Link>
