@@ -107,17 +107,48 @@ enum Role {
 // A person. Global (not tenant-owned) so one phone number can belong to
 // several businesses, e.g. a subcontractor working for two companies.
 model User {
-  id                String   @id @default(uuid())
+  id                String  @id @default(uuid())
   name              String
-  phone             String   @unique // E.164, e.g. +27821234567 — primary login
-  phoneVerified     Boolean  @default(false)
-  email             String?  @unique // optional: many technicians don't use email
-  preferredLanguage String   @default("en")
-  isPlatformAdmin   Boolean  @default(false) // ServiceKasi staff (you)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  phone             String? @unique // E.164, e.g. +27821234567 — technician login
+  email             String? @unique // owner / office login; many technicians have none
+  preferredLanguage String  @default("en")
+  isPlatformAdmin   Boolean @default(false) // ServiceKasi staff (you)
+
+  // Owners & office staff: email + password (+ authenticator app)
+  passwordHash     String?
+  totpSecret       String? // base32; set once the authenticator app is confirmed
+  totpEnabled      Boolean @default(false)
+  totpLastUsedStep Int? // blocks re-using the same 6-digit code
+
+  // Technicians: phone + PIN, set/reset by the business owner
+  pinHash String?
+
+  // Brute-force protection (a 4-digit PIN only has 10 000 combinations)
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   memberships Membership[]
+  sessions    Session[]
+}
+
+// A logged-in device. The cookie holds a random token; only its SHA-256 hash
+// is stored, so a database leak can't be used to log in. Deleting the row
+// logs that device out (e.g. when an owner removes a technician).
+model Session {
+  id             String   @id @default(uuid())
+  tokenHash      String   @unique
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeTenantId String? // which business this device is currently working in
+  mfaPending     Boolean  @default(false) // password OK, authenticator code still needed
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  userAgent      String?
+
+  @@index([userId])
 }
 
 // A User's seat in one Tenant.

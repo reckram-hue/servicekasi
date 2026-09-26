@@ -1,76 +1,28 @@
-"use client";
+import { redirect } from 'next/navigation';
+import { requireAuth } from '@/lib/auth/session';
+import { logoutAction } from '@/lib/auth/actions';
+import { AppShell } from '@/components/AppShell';
 
-import React, { useState } from "react";
-import dynamic from "next/dynamic";
-import { Sidebar } from "@/components/Sidebar";
-import { TopHeader } from "@/components/TopHeader";
-import {
-  INITIAL_USERS,
-  INITIAL_CLIENTS,
-  INITIAL_JOBS,
-  INITIAL_INVOICES,
-} from "@/data/mockData";
-import { INITIAL_TENANTS } from "@/data/tenantMockData";
+export default async function Home() {
+  const { user, membership, tenant } = await requireAuth();
 
-// Dynamically import AdminDashboard with SSR disabled to satisfy Leaflet
-const AdminDashboard = dynamic(
-  () => import("@/components/AdminDashboard").then((mod) => mod.AdminDashboard),
-  { ssr: false }
-);
+  // Owners must have the authenticator app switched on before going further.
+  if (membership.role === 'OWNER' && !user.totpEnabled) redirect('/settings/security');
 
-export default function Home() {
-  const [activeTab, setActiveTab] = useState<any>("dashboard");
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [currentRole, setCurrentRole] = useState<any>("ADMIN");
-
-  const jobs = INITIAL_JOBS;
-  const clients = INITIAL_CLIENTS;
-  const technicians = INITIAL_USERS.filter((u) => u.role === "technician" || u.role === "field_worker" || true);
-  const invoices = INITIAL_INVOICES;
-  const tenants = INITIAL_TENANTS;
-  const activeTenant = tenants[0];
+  if (membership.role === 'TECHNICIAN') {
+    // The technician mobile view is wired to real jobs in Phase 2.
+    return (
+      <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
+        <h1 className="text-xl font-semibold">Hi {user.name}</h1>
+        <p className="mt-2 text-slate-400">Your jobs for today will appear here.</p>
+        <form action={logoutAction} className="mt-6">
+          <button className="rounded-lg bg-slate-800 px-4 py-2 text-sm">Log out</button>
+        </form>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
-      <Sidebar
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-        unassignedCount={jobs.filter((j) => !j.assignedTechnicianId).length}
-        dominoConflictsCount={0}
-        onNewJobClick={() => {}}
-      />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <TopHeader
-          activeTab={activeTab}
-          isSidebarCollapsed={isSidebarCollapsed}
-          onToggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          dominoConflictsCount={0}
-          unassignedCount={jobs.filter((j) => !j.assignedTechnicianId).length}
-          onNewJobClick={() => {}}
-          onNewQuoteClick={() => {}}
-          onTabChange={setActiveTab}
-          tenants={tenants}
-          activeTenant={activeTenant}
-          currentUserRole={currentRole}
-          onRoleChange={setCurrentRole}
-        />
-        <main className="flex-1 overflow-y-auto p-6 bg-slate-900/50">
-          <AdminDashboard
-            jobs={jobs}
-            clients={clients}
-            technicians={technicians}
-            invoices={invoices}
-            onUpdateJobStatus={() => {}}
-            onAssignTechnician={() => {}}
-            onSelectJobForTechView={() => {}}
-            onSelectInvoice={() => {}}
-            onCreateInvoiceForJob={() => {}}
-            onOpenNewJobModal={() => {}}
-          />
-        </main>
-      </div>
-    </div>
+    <AppShell userName={user.name} businessName={tenant.businessName} role={membership.role} logout={logoutAction} />
   );
 }
