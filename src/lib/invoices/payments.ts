@@ -126,6 +126,7 @@ export async function reversePayment(
   if (!(await lockInvoice(tx, tenantId, payment.invoiceId))) return { error: 'Invoice not found.' };
   const fresh = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
   if (fresh.reversedAt) return { error: 'This payment has already been reversed.' };
+  if (fresh.status !== 'SUCCEEDED') return { error: 'Only a received payment can be reversed.' };
 
   await tx.payment.update({ where: { id: paymentId }, data: { reversedAt: new Date() } });
   await recalcInvoiceBalance(tx, payment.invoiceId);

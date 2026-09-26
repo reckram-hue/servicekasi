@@ -46,7 +46,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
       include: {
         client: { include: { properties: true } },
         lines: { orderBy: { sortOrder: 'asc' } },
-        payments: { orderBy: { createdAt: 'asc' } },
+        // Pending/failed rows are online checkouts the client didn't finish: not money received.
+        payments: { where: { status: 'SUCCEEDED' }, orderBy: { createdAt: 'asc' } },
         job: true,
         quote: { select: { id: true, number: true } },
         creditNotes: {

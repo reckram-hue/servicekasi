@@ -25,6 +25,7 @@ export async function getPublicInvoiceByToken(token: string) {
   return prisma.invoice.findUnique({
     where: { publicToken: token },
     select: {
+      tenantId: true,
       number: true,
       kind: true,
       status: true,

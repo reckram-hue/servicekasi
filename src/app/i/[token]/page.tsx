@@ -6,12 +6,21 @@ import { formatMoney } from '@/lib/money';
 import { invoiceBalanceCents } from '@/lib/invoices/payments';
 import { InvoiceDocument } from '@/components/invoices/InvoiceDocument';
 import { PrintButton } from '@/components/invoices/PrintButton';
+import { PayNowButton } from '@/components/payments/PayNowButton';
+import { activePaymentAccount } from '@/lib/payments/accounts';
 
 // Invoices carry personal details: keep them out of search engines.
 export const metadata: Metadata = { title: 'Invoice', robots: { index: false, follow: false } };
 
-export default async function PublicInvoicePage({ params }: { params: Promise<{ token: string }> }) {
+export default async function PublicInvoicePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<{ paid?: string }>;
+}) {
   const { token } = await params;
+  const { paid } = await searchParams;
   const invoice = await getPublicInvoiceByToken(token);
   if (!invoice) notFound();
 
@@ -41,6 +50,7 @@ export default async function PublicInvoicePage({ params }: { params: Promise<{ 
 
   const balanceCents = invoiceBalanceCents(invoice);
   const overdue = isInvoiceOverdue(invoice);
+  const canPayOnline = !doc.creditNote && balanceCents > 0 && !!(await activePaymentAccount(invoice.tenantId, invoice.currencyCode));
   const settledMessage =
     balanceCents < 0
       ? `A refund of ${formatMoney(-balanceCents, invoice.currencyCode)} is due to you.`
@@ -62,6 +72,11 @@ export default async function PublicInvoicePage({ params }: { params: Promise<{ 
           {settledMessage}
         </div>
       )}
+      {paid && invoice.status !== 'PAID' && !doc.creditNote && (
+        <div className="mb-4 rounded-xl border border-emerald-800 bg-emerald-500/10 p-4 text-center text-emerald-200 print:hidden">
+          Thank you! Your payment is being confirmed. This page will show &quot;Paid&quot; within a few minutes. Refresh to check.
+        </div>
+      )}
       {!doc.creditNote && invoice.status !== 'PAID' && (
         <div
           className={`mb-4 rounded-xl border p-4 text-center print:hidden ${
@@ -72,9 +87,12 @@ export default async function PublicInvoicePage({ params }: { params: Promise<{ 
           <div className="text-2xl font-bold">{formatMoney(balanceCents, invoice.currencyCode)}</div>
           {invoice.tenant.bankAccountNumber && (
             <div className="mt-1 text-sm text-slate-400">
-              Pay by EFT using <span className="font-semibold text-slate-200">{invoice.number}</span> as your reference.
+              {canPayOnline ? 'Or pay' : 'Pay'} by EFT using <span className="font-semibold text-slate-200">{invoice.number}</span> as your
+              reference.
             </div>
           )}
+          {canPayOnline && !paid && <PayNowButton publicToken={token} label={`Pay ${formatMoney(balanceCents, invoice.currencyCode)} now`} />}
+          {canPayOnline && !paid && <p className="mt-2 text-xs text-slate-500">Card, Instant EFT, Capitec Pay or SnapScan, via PayFast.</p>}
         </div>
       )}
 

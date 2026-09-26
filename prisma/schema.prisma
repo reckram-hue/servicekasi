@@ -101,6 +101,7 @@ model Tenant {
   messages      Message[]
   sequences     DocumentSequence[]
   auditLogs     AuditLog[]
+  paymentAccounts PaymentAccount[]
 }
 
 // ───────────────────────── People & access ─────────────────────────
@@ -751,4 +752,22 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([tenantId, entityType, entityId])
+}
+
+/// A business's own account with an online payment provider (PayFast first).
+/// Clients pay straight into it; ServiceKasi never holds the money.
+model PaymentAccount {
+  id         String        @id @default(uuid())
+  tenantId   String
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  provider   PaymentMethod // PAYFAST for now
+  enabled    Boolean       @default(false)
+  sandbox    Boolean       @default(true) // provider's test environment: no real money moves
+  merchantId String
+  // Merchant key and passphrase, AES-256-GCM encrypted with PAYMENT_SECRETS_KEY. Never stored as plain text.
+  secretsEnc String
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([tenantId, provider])
 }
