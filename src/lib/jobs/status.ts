@@ -22,3 +22,23 @@ export async function syncJobStatus(tx: Prisma.TransactionClient, jobId: string)
 
   if (job.status !== status) await tx.job.update({ where: { id: jobId }, data: { status } });
 }
+
+/**
+ * Recomputes a job's status from its invoices, per decision: once all visits
+ * are done and every issued invoice is paid, the job is COMPLETED; if a
+ * payment is later reversed, it goes back to REQUIRES_INVOICING. Only touches
+ * a job already in one of those two states — a job still being worked on (or
+ * a deposit invoice paid mid-job) never jumps to COMPLETED early, and a
+ * cancelled job is never touched.
+ */
+export async function syncJobInvoicingStatus(tx: Prisma.TransactionClient, jobId: string): Promise<void> {
+  const job = await tx.job.findUnique({ where: { id: jobId }, select: { status: true } });
+  if (!job || (job.status !== 'REQUIRES_INVOICING' && job.status !== 'COMPLETED')) return;
+
+  const invoices = await tx.invoice.findMany({ where: { jobId, status: { not: 'VOID' } }, select: { status: true } });
+  const issued = invoices.filter((i) => i.status !== 'DRAFT');
+  const allPaid = issued.length > 0 && issued.every((i) => i.status === 'PAID');
+
+  const status: JobStatus = allPaid ? 'COMPLETED' : 'REQUIRES_INVOICING';
+  if (job.status !== status) await tx.job.update({ where: { id: jobId }, data: { status } });
+}

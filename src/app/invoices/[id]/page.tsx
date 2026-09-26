@@ -7,10 +7,14 @@ import { formatMoney } from '@/lib/money';
 import { addDaysToDateStr, todayDateStr } from '@/lib/dates';
 import { invoiceDocumentProps } from '@/lib/invoices/publicQuery';
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_STYLES, isInvoiceOverdue } from '@/lib/invoices/status';
+import { PAYMENT_METHOD_LABELS } from '@/lib/invoices/paymentMethods';
+import { reversePaymentAction } from '@/lib/invoices/actions';
 import { InvoiceBuilder } from '@/components/invoices/InvoiceBuilder';
 import { InvoiceDocument } from '@/components/invoices/InvoiceDocument';
 import { SendInvoiceButton } from '@/components/invoices/SendInvoiceButton';
 import { PrintButton } from '@/components/invoices/PrintButton';
+import { RecordPaymentForm } from '@/components/invoices/RecordPaymentForm';
+import { ReversePaymentButton } from '@/components/invoices/ReversePaymentButton';
 
 function displayName(c: { firstName: string; lastName: string | null; companyName: string | null }) {
   const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
@@ -36,7 +40,12 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const [invoice, catalogItems, origin] = await Promise.all([
     db.invoice.findUnique({
       where: { id },
-      include: { client: { include: { properties: true } }, lines: { orderBy: { sortOrder: 'asc' } }, job: true },
+      include: {
+        client: { include: { properties: true } },
+        lines: { orderBy: { sortOrder: 'asc' } },
+        payments: { orderBy: { createdAt: 'asc' } },
+        job: true,
+      },
     }),
     db.catalogItem.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
     siteOrigin(),
@@ -93,6 +102,45 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             <div className="mt-4 flex items-center justify-between gap-3 print:hidden">
               <p className="text-xs text-slate-500">Issued invoices are locked. Mistakes are corrected with a credit note.</p>
               <PrintButton className="shrink-0 rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700" />
+            </div>
+
+            <div className="mt-8 space-y-4 print:hidden">
+              {invoice.payments.length > 0 && (
+                <div className="rounded-xl border border-slate-800 p-4">
+                  <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-slate-500">Payments</h2>
+                  <div className="space-y-2">
+                    {invoice.payments.map((p) => (
+                      <div
+                        key={p.id}
+                        className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 px-3 py-2 text-sm ${p.reversedAt ? 'opacity-50' : ''}`}
+                      >
+                        <div>
+                          <span className={p.reversedAt ? 'line-through' : 'font-medium text-slate-100'}>
+                            {formatMoney(p.amountCents, invoice.currencyCode)}
+                          </span>
+                          <span className="ml-2 text-slate-400">
+                            {PAYMENT_METHOD_LABELS[p.method]}
+                            {p.reference ? ` · ${p.reference}` : ''} ·{' '}
+                            {(p.receivedAt ?? p.createdAt).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}
+                          </span>
+                          {p.reversedAt && <span className="ml-2 text-xs text-red-400">Reversed</span>}
+                        </div>
+                        {!p.reversedAt && (
+                          <form action={reversePaymentAction}>
+                            <input type="hidden" name="paymentId" value={p.id} />
+                            <input type="hidden" name="invoiceId" value={invoice.id} />
+                            <ReversePaymentButton />
+                          </form>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(invoice.status === 'SENT' || invoice.status === 'PARTIALLY_PAID') && balanceCents > 0 && (
+                <RecordPaymentForm key={invoice.paidCents} invoiceId={invoice.id} balanceCents={balanceCents} today={today} />
+              )}
             </div>
           </>
         ) : (

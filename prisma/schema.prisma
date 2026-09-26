@@ -631,8 +631,13 @@ model Payment {
   amountCents       Int
   // Gateway reference — unique so a webhook delivered twice isn't counted twice
   providerReference String?
+  // Free text the owner types when recording a payment by hand (bank ref, receipt #, cheque no.)
+  reference         String?
   receivedAt        DateTime?
   createdAt         DateTime      @default(now())
+  // Set when a wrongly recorded payment is corrected. The row is kept, never
+  // deleted, so there's always a trail of what happened (decision 11).
+  reversedAt        DateTime?
 
   @@unique([method, providerReference])
   @@index([tenantId, invoiceId])

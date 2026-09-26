@@ -7,9 +7,11 @@ import { CatalogItemType } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { tenantDb } from '@/lib/db';
 import { requireRole } from '@/lib/auth/session';
-import { documentTotals, type MoneyLineInput } from '@/lib/money';
+import { documentTotals, formatMoney, parseMoneyInput, type MoneyLineInput } from '@/lib/money';
 import { addDaysToDateStr, todayDateStr } from '@/lib/dates';
 import { issueInvoice } from '@/lib/invoices/issue';
+import { recordPayment, reversePayment } from '@/lib/invoices/payments';
+import { MANUAL_PAYMENT_METHODS } from '@/lib/invoices/paymentMethods';
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string[] | undefined>; ok?: string } | undefined;
 
@@ -235,4 +237,78 @@ export async function deleteInvoiceAction(formData: FormData): Promise<void> {
   // One conditional statement, so an invoice issued a moment ago is never deleted.
   await tenantDb(tenant.id).invoice.deleteMany({ where: { id, status: 'DRAFT' } });
   revalidatePath('/invoices');
+}
+
+const RecordPaymentSchema = z.object({
+  invoiceId: z.string().uuid(),
+  amount: z.string().trim().min(1, { error: 'Enter an amount.' }),
+  date: z.iso.date({ error: 'Choose a date.' }),
+  method: z.enum(MANUAL_PAYMENT_METHODS, { error: 'Choose how it was paid.' }),
+  reference: z.string().trim().max(200).optional(),
+});
+
+/** Records a payment the owner took by hand — cash, EFT, or a card machine. */
+export async function recordPaymentAction(_: FormState, formData: FormData): Promise<FormState> {
+  const { tenant, user } = await requireRole();
+  const parsed = RecordPaymentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+  const d = parsed.data;
+
+  const amountCents = parseMoneyInput(d.amount);
+  if (amountCents === null || amountCents <= 0) {
+    return { fieldErrors: { amount: ['Enter a valid amount more than zero.'] } };
+  }
+
+  const today = todayDateStr(tenant.timezone);
+  if (d.date > today) return { fieldErrors: { date: ["The date can't be in the future."] } };
+
+  const invoice = await tenantDb(tenant.id).invoice.findUnique({
+    where: { id: d.invoiceId },
+    select: { status: true, totalCents: true, paidCents: true, currencyCode: true, jobId: true },
+  });
+  if (!invoice) return { error: 'Invoice not found.' };
+  const balanceCents = invoice.totalCents - invoice.paidCents;
+  if (invoice.status === 'DRAFT' || invoice.status === 'VOID' || balanceCents <= 0) {
+    return { error: 'This invoice has no balance to record a payment against.' };
+  }
+  if (amountCents > balanceCents) {
+    return { fieldErrors: { amount: [`Can't be more than the balance due, ${formatMoney(balanceCents, invoice.currencyCode)}.`] } };
+  }
+
+  const result = await prisma.$transaction((tx) =>
+    recordPayment(tx, {
+      tenantId: tenant.id,
+      invoiceId: d.invoiceId,
+      amountCents,
+      method: d.method,
+      // "YYYY-MM-DD" → UTC midnight, like Invoice.dueAt.
+      receivedAt: new Date(`${d.date}T00:00:00Z`),
+      reference: d.reference || null,
+      userId: user.id,
+    })
+  );
+  if ('error' in result) return { error: result.error };
+
+  revalidatePath(`/invoices/${d.invoiceId}`);
+  revalidatePath('/invoices');
+  if (invoice.jobId) revalidatePath(`/jobs/${invoice.jobId}`);
+  return { ok: 'Payment recorded.' };
+}
+
+const ReversePaymentSchema = z.object({ paymentId: z.string().uuid(), invoiceId: z.string().uuid() });
+
+/** Corrects a wrongly recorded payment. The row stays, only marked reversed, so there's always a trail. */
+export async function reversePaymentAction(formData: FormData): Promise<void> {
+  const { tenant, user } = await requireRole();
+  const parsed = ReversePaymentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return;
+  const d = parsed.data;
+
+  const invoice = await tenantDb(tenant.id).invoice.findUnique({ where: { id: d.invoiceId }, select: { jobId: true } });
+
+  await prisma.$transaction((tx) => reversePayment(tx, { tenantId: tenant.id, paymentId: d.paymentId, userId: user.id }));
+
+  revalidatePath(`/invoices/${d.invoiceId}`);
+  revalidatePath('/invoices');
+  if (invoice?.jobId) revalidatePath(`/jobs/${invoice.jobId}`);
 }
