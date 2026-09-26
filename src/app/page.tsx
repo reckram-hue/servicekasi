@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { requireAuth } from '@/lib/auth/session';
 import { logoutAction } from '@/lib/auth/actions';
 import { AppShell } from '@/components/AppShell';
+import { TechnicianDay } from '@/components/technician/TechnicianDay';
 
 export default async function Home() {
   const { user, membership, tenant } = await requireAuth();
@@ -10,14 +11,17 @@ export default async function Home() {
   if (membership.role === 'OWNER' && !user.totpEnabled) redirect('/settings/security');
 
   if (membership.role === 'TECHNICIAN') {
-    // The technician mobile view is wired to real jobs in Phase 2.
     return (
-      <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
-        <h1 className="text-xl font-semibold">Hi {user.name}</h1>
-        <p className="mt-2 text-slate-400">Your jobs for today will appear here.</p>
-        <form action={logoutAction} className="mt-6">
-          <button className="rounded-lg bg-slate-800 px-4 py-2 text-sm">Log out</button>
-        </form>
+      <div className="min-h-screen bg-slate-950 p-4 text-slate-100">
+        <div className="mx-auto max-w-lg">
+          <div className="mb-4 flex items-center justify-between">
+            <h1 className="text-xl font-semibold">Hi {user.name}</h1>
+            <form action={logoutAction}>
+              <button className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm">Log out</button>
+            </form>
+          </div>
+          <TechnicianDay tenant={{ id: tenant.id, timezone: tenant.timezone }} membershipId={membership.id} />
+        </div>
       </div>
     );
   }

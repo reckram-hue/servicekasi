@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { JobPriority, type JobStatus, type Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
-import { tenantDb, nextDocumentNumber } from '@/lib/db';
+import { tenantDb, nextDocumentNumber, type TenantDb } from '@/lib/db';
 import { requireRole } from '@/lib/auth/session';
 import { zonedDateTime } from '@/lib/dates';
 
@@ -192,4 +192,81 @@ export async function cancelVisitAction(formData: FormData): Promise<void> {
   revalidatePath(`/jobs/${jobId}`);
   revalidatePath('/jobs');
   revalidatePath('/schedule');
+}
+
+// ───────────────────── Technician's day (Step 7) ─────────────────────
+
+const NOTES_MAX = 2000;
+
+/** A visit the calling technician is actually assigned to, or null (wrong visit, not theirs, or gone). */
+async function loadOwnVisit(db: TenantDb, visitId: string, membershipId: string) {
+  const visit = await db.visit.findUnique({ where: { id: visitId }, include: { assignments: true } });
+  if (!visit || !visit.assignments.some((a) => a.membershipId === membershipId)) return null;
+  return visit;
+}
+
+function revalidateVisit(jobId: string) {
+  revalidatePath('/');
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath('/jobs');
+  revalidatePath('/schedule');
+}
+
+export async function startTravelAction(formData: FormData): Promise<void> {
+  const { tenant, membership } = await requireRole(['TECHNICIAN']);
+  const visitId = String(formData.get('visitId') ?? '');
+
+  const db = tenantDb(tenant.id);
+  const visit = await loadOwnVisit(db, visitId, membership.id);
+  if (!visit || (visit.status !== 'SCHEDULED' && visit.status !== 'EN_ROUTE')) return;
+
+  await db.visit.update({ where: { id: visitId }, data: { status: 'EN_ROUTE' } });
+  revalidateVisit(visit.jobId);
+}
+
+export async function arriveAction(formData: FormData): Promise<void> {
+  const { tenant, membership } = await requireRole(['TECHNICIAN']);
+  const visitId = String(formData.get('visitId') ?? '');
+
+  const db = tenantDb(tenant.id);
+  const visit = await loadOwnVisit(db, visitId, membership.id);
+  if (!visit || (visit.status !== 'SCHEDULED' && visit.status !== 'EN_ROUTE')) return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.visit.update({ where: { id: visitId }, data: { status: 'ON_SITE' } });
+    await syncJobStatus(tx, visit.jobId);
+  });
+  revalidateVisit(visit.jobId);
+}
+
+export async function completeVisitAction(formData: FormData): Promise<void> {
+  const { tenant, membership } = await requireRole(['TECHNICIAN']);
+  const visitId = String(formData.get('visitId') ?? '');
+  const notes = String(formData.get('notes') ?? '').trim().slice(0, NOTES_MAX);
+
+  const db = tenantDb(tenant.id);
+  const visit = await loadOwnVisit(db, visitId, membership.id);
+  if (!visit || visit.status === 'COMPLETED' || visit.status === 'CANCELLED') return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.visit.update({ where: { id: visitId }, data: { status: 'COMPLETED', completionNotes: notes || undefined } });
+    await syncJobStatus(tx, visit.jobId);
+  });
+  revalidateVisit(visit.jobId);
+}
+
+export async function markNoAccessAction(formData: FormData): Promise<void> {
+  const { tenant, membership } = await requireRole(['TECHNICIAN']);
+  const visitId = String(formData.get('visitId') ?? '');
+  const notes = String(formData.get('notes') ?? '').trim().slice(0, NOTES_MAX);
+
+  const db = tenantDb(tenant.id);
+  const visit = await loadOwnVisit(db, visitId, membership.id);
+  if (!visit || visit.status === 'COMPLETED' || visit.status === 'CANCELLED') return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.visit.update({ where: { id: visitId }, data: { status: 'NO_ACCESS', completionNotes: notes || undefined } });
+    await syncJobStatus(tx, visit.jobId);
+  });
+  revalidateVisit(visit.jobId);
 }
