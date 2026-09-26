@@ -63,6 +63,7 @@ export function AppShell({ userName, businessName, role, logout }: AppShellProps
         <main className="flex-1 overflow-y-auto p-6 bg-slate-900/50">
           <div className="mb-4 flex flex-wrap items-center justify-end gap-3 text-sm text-slate-400">
             <span>{userName} · {businessName}</span>
+            <Link href="/clients" className="text-amber-400 hover:underline">Clients</Link>
             <Link href="/team" className="text-amber-400 hover:underline">Team</Link>
             <Link href="/settings/security" className="text-amber-400 hover:underline">Security</Link>
             <form action={logout}><button className="text-slate-300 hover:text-white">Log out</button></form>
