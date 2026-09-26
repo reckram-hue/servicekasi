@@ -79,6 +79,40 @@ export function TextArea({
   );
 }
 
+export function Select({
+  label,
+  name,
+  errors,
+  hint,
+  children,
+  ...rest
+}: {
+  label: string;
+  name: string;
+  errors?: string[];
+  hint?: string;
+  children: React.ReactNode;
+} & React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <label className="block mb-4">
+      <span className="block text-sm font-medium text-slate-300 mb-1">{label}</span>
+      <select
+        name={name}
+        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+        {...rest}
+      >
+        {children}
+      </select>
+      {hint && !errors?.length && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
+      {errors?.map((e) => (
+        <span key={e} className="mt-1 block text-xs text-red-400">
+          {e}
+        </span>
+      ))}
+    </label>
+  );
+}
+
 export function Checkbox({ label, name, ...rest }: { label: string; name: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="mb-4 flex items-center gap-2 text-sm text-slate-300">

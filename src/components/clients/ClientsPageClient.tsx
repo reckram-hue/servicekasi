@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { createClientAction, toggleArchiveClientAction, updateClientAction, type FormState } from '@/lib/clients/actions';
 import { FormMessage, SubmitButton } from '@/components/auth/ui';
 import { ClientFormFields } from './ClientFormFields';
-import { Modal } from './Modal';
+import { Modal } from '@/components/ui/Modal';
 
 export type ClientRow = {
   id: string;
