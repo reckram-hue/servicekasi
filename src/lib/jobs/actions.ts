@@ -6,11 +6,12 @@ import { z } from 'zod';
 import { JobPriority } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { tenantDb, nextDocumentNumber, type TenantDb } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireAuth, requireRole } from '@/lib/auth/session';
 import { todayDateStr, zonedDateTime } from '@/lib/dates';
 import { buildRule } from '@/lib/recurrence';
 import { syncJobStatus } from '@/lib/jobs/status';
 import { generateVisitsForJob } from '@/lib/jobs/recurring';
+import { deletePublicFile, uploadPublicFile } from '@/lib/storage';
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string[] | undefined>; ok?: string } | undefined;
 
@@ -228,20 +229,115 @@ export async function arriveAction(formData: FormData): Promise<void> {
   revalidateVisit(visit.jobId);
 }
 
+/** A "data:image/png;base64,...." string from canvas.toDataURL(), decoded — or null if it's empty or malformed. */
+function decodeDataUrl(dataUrl: string): { contentType: 'image/png'; buffer: Buffer } | null {
+  const m = /^data:image\/png;base64,([a-zA-Z0-9+/=]+)$/.exec(dataUrl);
+  if (!m) return null;
+  return { contentType: 'image/png', buffer: Buffer.from(m[1], 'base64') };
+}
+
 export async function completeVisitAction(formData: FormData): Promise<void> {
   const { tenant, membership } = await requireRole(['TECHNICIAN']);
   const visitId = String(formData.get('visitId') ?? '');
   const notes = String(formData.get('notes') ?? '').trim().slice(0, NOTES_MAX);
+  const signedByName = String(formData.get('signedByName') ?? '').trim().slice(0, 200);
+  const signatureDataUrl = String(formData.get('signatureDataUrl') ?? '');
 
   const db = tenantDb(tenant.id);
   const visit = await loadOwnVisit(db, visitId, membership.id);
   if (!visit || visit.status === 'COMPLETED' || visit.status === 'CANCELLED') return;
 
+  let signatureUrl: string | undefined;
+  const decoded = signatureDataUrl ? decodeDataUrl(signatureDataUrl) : null;
+  if (decoded) {
+    try {
+      signatureUrl = await uploadPublicFile(tenant.id, decoded.buffer, decoded.contentType);
+    } catch {
+      // signature is a nice-to-have on completion; a storage hiccup shouldn't block the technician finishing the visit
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
-    await tx.visit.update({ where: { id: visitId }, data: { status: 'COMPLETED', completionNotes: notes || undefined } });
+    await tx.visit.update({
+      where: { id: visitId },
+      data: {
+        status: 'COMPLETED',
+        completionNotes: notes || undefined,
+        ...(signatureUrl && { signatureUrl, signedByName: signedByName || 'Client', signedAt: new Date() }),
+      },
+    });
     await syncJobStatus(tx, visit.jobId);
   });
   revalidateVisit(visit.jobId);
+}
+
+// ───────────────────── Job-site photos (Phase 2b) ─────────────────────
+
+const PHOTO_KINDS = ['BEFORE', 'AFTER', 'PARTS'] as const;
+
+/** Technician adds a photo while on site. Retry-safe: the same clientGeneratedId is never stored twice. */
+export async function addVisitPhotoAction(formData: FormData): Promise<{ error?: string } | void> {
+  const { tenant, membership } = await requireRole(['TECHNICIAN']);
+  const visitId = String(formData.get('visitId') ?? '');
+  const kind = String(formData.get('kind') ?? '');
+  const clientGeneratedId = String(formData.get('clientGeneratedId') ?? '');
+  const caption = String(formData.get('caption') ?? '').trim().slice(0, 500) || undefined;
+  const photo = formData.get('photo');
+
+  if (!PHOTO_KINDS.includes(kind as (typeof PHOTO_KINDS)[number])) return { error: 'Unknown photo type.' };
+  if (!clientGeneratedId) return { error: 'Missing upload id.' };
+  if (!(photo instanceof Blob) || photo.size === 0) return { error: 'Choose a photo first.' };
+  if (photo.type !== 'image/jpeg') return { error: 'Unsupported photo format.' };
+
+  const db = tenantDb(tenant.id);
+  const visit = await loadOwnVisit(db, visitId, membership.id);
+  if (!visit) return { error: 'Visit not found.' };
+  if (visit.status !== 'ON_SITE') return { error: 'Photos can only be added while on site.' };
+
+  const existing = await db.attachment.findUnique({ where: { clientGeneratedId } });
+  if (existing) return; // already uploaded — the technician's phone retried a flaky request
+
+  let url: string;
+  try {
+    const buffer = Buffer.from(await photo.arrayBuffer());
+    url = await uploadPublicFile(tenant.id, buffer, 'image/jpeg');
+  } catch {
+    return { error: 'Could not upload that photo — check your connection and try again.' };
+  }
+
+  await db.attachment.create({
+    data: {
+      tenantId: tenant.id,
+      jobId: visit.jobId,
+      visitId,
+      kind: kind as (typeof PHOTO_KINDS)[number],
+      url,
+      mimeType: 'image/jpeg',
+      caption,
+      uploadedByMembershipId: membership.id,
+      clientGeneratedId,
+    },
+  });
+  revalidateVisit(visit.jobId);
+}
+
+/** Removes a photo: the technician who took it (only while still on site), or any office user. */
+export async function deleteAttachmentAction(formData: FormData): Promise<void> {
+  const { tenant, membership } = await requireAuth();
+  const attachmentId = String(formData.get('attachmentId') ?? '');
+
+  const db = tenantDb(tenant.id);
+  const attachment = await db.attachment.findUnique({ where: { id: attachmentId }, include: { visit: true } });
+  if (!attachment) return;
+
+  const isOffice = membership.role !== 'TECHNICIAN';
+  const isOwnUnfinishedUpload =
+    attachment.uploadedByMembershipId === membership.id && attachment.visit?.status === 'ON_SITE';
+  if (!isOffice && !isOwnUnfinishedUpload) return;
+
+  await db.attachment.delete({ where: { id: attachmentId } });
+  await deletePublicFile(attachment.url);
+  if (attachment.jobId) revalidateVisit(attachment.jobId);
 }
 
 export async function markNoAccessAction(formData: FormData): Promise<void> {

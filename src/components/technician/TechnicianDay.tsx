@@ -2,6 +2,8 @@ import { tenantDb } from '@/lib/db';
 import { addDaysToDateStr, todayDateStr, zonedDateTime } from '@/lib/dates';
 import { topUpRecurringVisits } from '@/lib/jobs/recurring';
 import { arriveAction, completeVisitAction, markNoAccessAction, startTravelAction } from '@/lib/jobs/actions';
+import { PhotoCapture } from '@/components/technician/PhotoCapture';
+import { SignaturePad } from '@/components/technician/SignaturePad';
 
 function displayName(c: { firstName: string; lastName: string | null; companyName: string | null }) {
   const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
@@ -62,7 +64,7 @@ export async function TechnicianDay({
       status: { not: 'CANCELLED' },
       assignments: { some: { membershipId } },
     },
-    include: { job: { include: { client: true, property: true } } },
+    include: { job: { include: { client: true, property: true } }, attachments: { orderBy: { createdAt: 'asc' } } },
     orderBy: { startsAt: 'asc' },
   });
 
@@ -131,23 +133,38 @@ export async function TechnicianDay({
         )}
 
         {v.status === 'ON_SITE' && (
-          <form action={completeVisitAction} className="mt-3">
-            <input type="hidden" name="visitId" value={v.id} />
-            <textarea
-              name="notes"
-              rows={2}
-              placeholder="Notes for this job (optional)"
-              maxLength={2000}
-              className="mb-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-amber-400 focus:outline-none"
-            />
-            <button type="submit" className={`${BIG_BUTTON} w-full bg-emerald-500 text-slate-950`}>
-              Done
-            </button>
-          </form>
+          <>
+            <PhotoCapture visitId={v.id} photos={v.attachments} membershipId={membershipId} />
+            <form action={completeVisitAction} className="mt-3">
+              <input type="hidden" name="visitId" value={v.id} />
+              <textarea
+                name="notes"
+                rows={2}
+                placeholder="Notes for this job (optional)"
+                maxLength={2000}
+                className="mb-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+              />
+              <SignaturePad />
+              <button type="submit" className={`${BIG_BUTTON} mt-3 w-full bg-emerald-500 text-slate-950`}>
+                Done
+              </button>
+            </form>
+          </>
         )}
 
-        {(v.status === 'COMPLETED' || v.status === 'NO_ACCESS') && v.completionNotes && (
-          <p className="mt-3 rounded-lg bg-slate-800/50 px-3 py-2 text-sm text-slate-400">{v.completionNotes}</p>
+        {(v.status === 'COMPLETED' || v.status === 'NO_ACCESS') && (
+          <>
+            {v.completionNotes && <p className="mt-3 rounded-lg bg-slate-800/50 px-3 py-2 text-sm text-slate-400">{v.completionNotes}</p>}
+            {v.attachments.length > 0 && (
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {v.attachments.map((p) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={p.id} src={p.url} alt="" className="aspect-square rounded-lg border border-slate-800 object-cover" />
+                ))}
+              </div>
+            )}
+            {v.signatureUrl && <p className="mt-2 text-xs text-slate-500">Signed by {v.signedByName}</p>}
+          </>
         )}
       </div>
     );

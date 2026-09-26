@@ -6,7 +6,7 @@ import { formatMoney } from '@/lib/money';
 import { formatDateStr, isoDateDaysFromNow, localDateStr, localTimeStr, todayDateStr, zonedDateTime } from '@/lib/dates';
 import { describeRule, patternOf } from '@/lib/recurrence';
 import { publicHolidayName } from '@/lib/holidays';
-import { cancelVisitAction, stopRecurrenceAction } from '@/lib/jobs/actions';
+import { cancelVisitAction, deleteAttachmentAction, stopRecurrenceAction } from '@/lib/jobs/actions';
 import { recurrenceEndsStr, topUpRecurringVisits } from '@/lib/jobs/recurring';
 import { AddVisitForm } from '@/components/jobs/AddVisitForm';
 import { RecurrenceForm } from '@/components/jobs/RecurrenceForm';
@@ -65,7 +65,10 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         lines: { orderBy: { sortOrder: 'asc' } },
         visits: {
           orderBy: { startsAt: 'asc' },
-          include: { assignments: { include: { membership: { include: { user: true } } } } },
+          include: {
+            assignments: { include: { membership: { include: { user: true } } } },
+            attachments: { orderBy: { createdAt: 'asc' } },
+          },
         },
       },
     }),
@@ -107,6 +110,36 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
             {holiday && <div className="mt-1 text-xs text-amber-300">⚠ Public holiday: {holiday}</div>}
             {v.instructions && <div className="mt-1 text-xs text-slate-500">{v.instructions}</div>}
             {v.completionNotes && <div className="mt-1 text-xs text-slate-400">Technician: {v.completionNotes}</div>}
+            {v.attachments.length > 0 && (
+              <div className="mt-2 grid grid-cols-4 gap-1.5 sm:grid-cols-6">
+                {v.attachments.map((a) => (
+                  <div key={a.id} className="group relative aspect-square overflow-hidden rounded-md border border-slate-800">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.url} alt={a.kind} className="h-full w-full object-cover" />
+                    <form action={deleteAttachmentAction} className="absolute right-0.5 top-0.5">
+                      <input type="hidden" name="attachmentId" value={a.id} />
+                      <button
+                        type="submit"
+                        className="rounded bg-red-600/90 px-1 text-[10px] text-white opacity-0 group-hover:opacity-100"
+                        aria-label="Delete photo"
+                      >
+                        ✕
+                      </button>
+                    </form>
+                  </div>
+                ))}
+              </div>
+            )}
+            {v.signatureUrl && (
+              <div className="mt-2 flex items-center gap-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={v.signatureUrl} alt="Client signature" className="h-10 rounded border border-slate-800 bg-white" />
+                <span className="text-xs text-slate-500">
+                  Signed by {v.signedByName}
+                  {v.signedAt && ` · ${formatDateStr(localDateStr(v.signedAt, tz))}`}
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${VISIT_STATUS_STYLES[v.status] ?? 'bg-slate-800 text-slate-300'}`}>
