@@ -30,13 +30,5 @@ export default async function Home() {
 
   const moneyOwed = await moneyOwedSummary(tenantDb(tenant.id));
 
-  return (
-    <AppShell
-      userName={user.name}
-      businessName={tenant.businessName}
-      role={membership.role}
-      logout={logoutAction}
-      moneyOwed={{ ...moneyOwed, currencyCode: tenant.currencyCode }}
-    />
-  );
+  return <AppShell moneyOwed={{ ...moneyOwed, currencyCode: tenant.currencyCode }} />;
 }

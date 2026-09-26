@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { requireRole } from '@/lib/auth/session';
 import { BusinessSettingsForm } from '@/components/settings/BusinessSettingsForm';
 import { getInvoiceNumbering } from '@/lib/invoices/numbering';
@@ -10,10 +9,7 @@ export default async function BusinessSettingsPage() {
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
       <div className="mx-auto max-w-2xl">
-        <Link href="/" className="text-sm text-amber-400 hover:underline">
-          ← Dashboard
-        </Link>
-        <h1 className="mt-2 mb-6 text-2xl font-bold">Business settings</h1>
+        <h1 className="mb-6 text-2xl font-bold">Business settings</h1>
         <BusinessSettingsForm
           tenant={{
             businessName: tenant.businessName,

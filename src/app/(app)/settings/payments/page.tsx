@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { requireRole } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
 import { readCredentials } from '@/lib/payments/accounts';
@@ -12,10 +11,7 @@ export default async function PaymentSettingsPage() {
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
       <div className="mx-auto max-w-2xl">
-        <Link href="/" className="text-sm text-amber-400 hover:underline">
-          ← Dashboard
-        </Link>
-        <h1 className="mt-2 mb-2 text-2xl font-bold">Online payments</h1>
+        <h1 className="mb-2 text-2xl font-bold">Online payments</h1>
         <p className="mb-6 text-sm text-slate-400">
           Add a &quot;Pay now&quot; button to your invoices. Payments are recorded on the invoice automatically once the provider confirms them.
         </p>

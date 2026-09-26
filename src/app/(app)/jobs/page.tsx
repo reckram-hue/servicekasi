@@ -46,10 +46,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
       <div className="mx-auto max-w-4xl">
-        <Link href="/" className="text-sm text-amber-400 hover:underline">
-          ← Dashboard
-        </Link>
-        <h1 className="mt-2 mb-6 text-2xl font-bold">Jobs — {tenant.businessName}</h1>
+        <h1 className="mb-6 text-2xl font-bold">Jobs — {tenant.businessName}</h1>
 
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">

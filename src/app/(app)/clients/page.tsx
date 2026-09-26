@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
 import { ClientsPageClient } from '@/components/clients/ClientsPageClient';
@@ -28,10 +27,7 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
       <div className="mx-auto max-w-4xl">
-        <Link href="/" className="text-sm text-amber-400 hover:underline">
-          ← Dashboard
-        </Link>
-        <h1 className="mt-2 mb-6 text-2xl font-bold">Clients — {tenant.businessName}</h1>
+        <h1 className="mb-6 text-2xl font-bold">Clients — {tenant.businessName}</h1>
         <ClientsPageClient clients={clients} query={query} />
       </div>
     </div>

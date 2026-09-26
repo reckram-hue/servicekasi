@@ -37,10 +37,7 @@ export default async function OverdueInvoicesPage() {
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
       <div className="mx-auto max-w-4xl">
-        <Link href="/" className="text-sm text-amber-400 hover:underline">
-          ← Dashboard
-        </Link>
-        <h1 className="mt-2 mb-1 text-2xl font-bold">Overdue invoices — {tenant.businessName}</h1>
+        <h1 className="mb-1 text-2xl font-bold">Overdue invoices — {tenant.businessName}</h1>
         <p className="mb-6 text-sm text-slate-400">
           {invoices.length === 0
             ? 'Nothing overdue right now.'
