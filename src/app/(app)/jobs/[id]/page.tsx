@@ -7,13 +7,15 @@ import { formatMoney } from '@/lib/money';
 import { formatDateStr, isoDateDaysFromNow, localDateStr, localTimeStr, todayDateStr, zonedDateTime } from '@/lib/dates';
 import { describeRule, patternOf } from '@/lib/recurrence';
 import { publicHolidayName } from '@/lib/holidays';
-import { cancelVisitAction, deleteAttachmentAction, stopRecurrenceAction } from '@/lib/jobs/actions';
+import { cancelVisitAction, deleteAttachmentAction, reopenJobAction, resumeJobAction, stopRecurrenceAction } from '@/lib/jobs/actions';
 import { recurrenceEndsStr, topUpRecurringVisits } from '@/lib/jobs/recurring';
 import { createDepositInvoiceAction, createInvoiceFromJobAction } from '@/lib/invoices/actions';
 import { invoiceBadge } from '@/lib/invoices/status';
 import { AddVisitForm } from '@/components/jobs/AddVisitForm';
 import { RecurrenceForm } from '@/components/jobs/RecurrenceForm';
 import { NotifyClientButton } from '@/components/jobs/NotifyClientButton';
+import { PauseJobForm } from '@/components/jobs/PauseJobForm';
+import { CancelJobForm } from '@/components/jobs/CancelJobForm';
 
 async function siteOrigin(): Promise<string> {
   const h = await headers();
@@ -35,6 +37,7 @@ const STATUS_STYLES: Record<string, string> = {
   DRAFT: 'bg-slate-800 text-slate-300',
   SCHEDULED: 'bg-blue-500/10 text-blue-300',
   IN_PROGRESS: 'bg-amber-500/10 text-amber-300',
+  ON_HOLD: 'bg-slate-700 text-slate-300',
   REQUIRES_INVOICING: 'bg-purple-500/10 text-purple-300',
   COMPLETED: 'bg-emerald-500/10 text-emerald-300',
   CANCELLED: 'bg-red-500/10 text-red-300',
@@ -229,6 +232,48 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
               {job.quote.number}
             </Link>
           </p>
+        )}
+
+        {job.status === 'ON_HOLD' && (
+          <div className="mb-6 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-sm font-medium text-slate-200">Job paused{job.onHoldReason && `: ${job.onHoldReason}`}</div>
+              <form action={resumeJobAction}>
+                <input type="hidden" name="jobId" value={job.id} />
+                <button type="submit" className="rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-amber-400">
+                  Resume job
+                </button>
+              </form>
+            </div>
+            <p className="text-xs text-slate-500">Nothing happens on its own while paused — visits, invoicing and recurring visits all wait until it&apos;s resumed.</p>
+          </div>
+        )}
+
+        {job.status === 'CANCELLED' && (
+          <div className="mb-6 rounded-xl border border-red-900 bg-red-500/5 p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="text-sm font-medium text-red-300">Job cancelled{job.cancelReason && `: ${job.cancelReason}`}</div>
+              <form action={reopenJobAction}>
+                <input type="hidden" name="jobId" value={job.id} />
+                <button type="submit" className="rounded-md bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700">
+                  Reopen job
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {isOpen && job.status !== 'ON_HOLD' && (
+          <details className="mb-2">
+            <summary className="cursor-pointer text-xs text-slate-400 hover:text-slate-200">Pause job</summary>
+            <PauseJobForm jobId={job.id} />
+          </details>
+        )}
+        {isOpen && (
+          <details className="mb-6">
+            <summary className="cursor-pointer text-xs text-red-400 hover:text-red-300">Cancel job</summary>
+            <CancelJobForm jobId={job.id} />
+          </details>
         )}
 
         <div className="mb-6 rounded-xl border border-slate-800 p-4">

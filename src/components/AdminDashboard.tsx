@@ -29,6 +29,7 @@ const STATUS_COLUMNS: { key: DashboardJob['status']; label: string; dotColor: st
   { key: 'DRAFT', label: 'Unscheduled / Draft', dotColor: 'bg-amber-400' },
   { key: 'SCHEDULED', label: 'Scheduled', dotColor: 'bg-blue-500' },
   { key: 'IN_PROGRESS', label: 'In Progress', dotColor: 'bg-purple-500' },
+  { key: 'ON_HOLD', label: 'On Hold', dotColor: 'bg-slate-400' },
   { key: 'REQUIRES_INVOICING', label: 'Requires Invoicing', dotColor: 'bg-emerald-500' },
   { key: 'COMPLETED', label: 'Completed', dotColor: 'bg-slate-700' },
 ];

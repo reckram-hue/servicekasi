@@ -40,7 +40,7 @@ export function recurrenceEndsStr(job: Pick<Job, 'recurrenceEnds'>): string | nu
 export async function generateVisitsForJob(job: RecurringFields, today: string): Promise<number> {
   const { recurrenceRule: rule, recurrenceStart: start, recurrenceStartTime: startTime, recurrenceEndTime: endTime } = job;
   if (!rule || !start || !startTime || !endTime) return 0;
-  if (job.status === 'CANCELLED' || job.status === 'COMPLETED') return 0;
+  if (job.status === 'CANCELLED' || job.status === 'COMPLETED' || job.status === 'ON_HOLD') return 0;
 
   const horizon = addDaysToDateStr(today, GENERATE_AHEAD_DAYS);
   const ends = recurrenceEndsStr(job);

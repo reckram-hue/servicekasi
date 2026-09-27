@@ -388,6 +388,7 @@ enum JobStatus {
   DRAFT
   SCHEDULED
   IN_PROGRESS
+  ON_HOLD
   REQUIRES_INVOICING
   COMPLETED
   CANCELLED
@@ -432,9 +433,12 @@ model Job {
   recurrenceGeneratedUntil String? // "YYYY-MM-DD" visits exist up to and including this date
 
   estimatedMinutes Int?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  completedAt      DateTime?
+  // Set when the job is paused or cancelled by hand; cleared when resumed or reopened.
+  onHoldReason String?
+  cancelReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  completedAt  DateTime?
 
   lines         LineItem[]
   visits        Visit[]

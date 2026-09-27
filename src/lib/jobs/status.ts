@@ -1,26 +1,27 @@
 import 'server-only';
-import type { JobStatus, Prisma } from '@prisma/client';
+import type { JobStatus, Prisma, VisitStatus } from '@prisma/client';
 import { depositsCoverJob } from '@/lib/invoices/deposits';
 
+/** Any visit scheduled → SCHEDULED; any on site → IN_PROGRESS; all complete → REQUIRES_INVOICING; none active → DRAFT. */
+export function computeStatusFromVisits(visits: { status: VisitStatus }[]): JobStatus {
+  const active = visits.filter((v) => v.status !== 'CANCELLED');
+  if (active.length === 0) return 'DRAFT';
+  if (active.every((v) => v.status === 'COMPLETED')) return 'REQUIRES_INVOICING';
+  if (active.some((v) => v.status === 'ON_SITE')) return 'IN_PROGRESS';
+  return 'SCHEDULED';
+}
+
 /**
- * Recomputes a job's status from its (non-cancelled) visits, per the rule:
- * any visit scheduled → SCHEDULED; any on site → IN_PROGRESS; all complete →
- * REQUIRES_INVOICING. Never touches a job that's already been cancelled or
- * fully completed (invoiced) by hand.
+ * Recomputes a job's status from its (non-cancelled) visits. Never touches a
+ * job that's been cancelled or completed (invoiced) by hand, or paused —
+ * a paused job stays put until it's explicitly resumed.
  */
 export async function syncJobStatus(tx: Prisma.TransactionClient, jobId: string): Promise<void> {
   const job = await tx.job.findUnique({ where: { id: jobId }, select: { status: true } });
-  if (!job || job.status === 'CANCELLED' || job.status === 'COMPLETED') return;
+  if (!job || job.status === 'CANCELLED' || job.status === 'COMPLETED' || job.status === 'ON_HOLD') return;
 
   const visits = await tx.visit.findMany({ where: { jobId }, select: { status: true } });
-  const active = visits.filter((v) => v.status !== 'CANCELLED');
-
-  let status: JobStatus;
-  if (active.length === 0) status = 'DRAFT';
-  else if (active.every((v) => v.status === 'COMPLETED')) status = 'REQUIRES_INVOICING';
-  else if (active.some((v) => v.status === 'ON_SITE')) status = 'IN_PROGRESS';
-  else status = 'SCHEDULED';
-
+  const status = computeStatusFromVisits(visits);
   if (job.status !== status) await tx.job.update({ where: { id: jobId }, data: { status } });
 }
 

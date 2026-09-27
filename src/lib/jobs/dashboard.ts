@@ -16,7 +16,7 @@ export type DashboardJob = {
   title: string;
   category: string | null;
   priority: 'LOW' | 'NORMAL' | 'HIGH' | 'EMERGENCY';
-  status: 'DRAFT' | 'SCHEDULED' | 'IN_PROGRESS' | 'REQUIRES_INVOICING' | 'COMPLETED';
+  status: 'DRAFT' | 'SCHEDULED' | 'IN_PROGRESS' | 'ON_HOLD' | 'REQUIRES_INVOICING' | 'COMPLETED';
   clientName: string;
   locationLabel: string | null;
   nextVisit: { startsAt: Date; endsAt: Date; technicianNames: string[] } | null;

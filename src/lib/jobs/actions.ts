@@ -9,7 +9,7 @@ import { tenantDb, nextDocumentNumber, type TenantDb } from '@/lib/db';
 import { requireAuth, requireRole } from '@/lib/auth/session';
 import { todayDateStr, zonedDateTime } from '@/lib/dates';
 import { buildRule } from '@/lib/recurrence';
-import { syncJobStatus } from '@/lib/jobs/status';
+import { computeStatusFromVisits, syncJobStatus } from '@/lib/jobs/status';
 import { generateVisitsForJob } from '@/lib/jobs/recurring';
 import { deletePublicFile, uploadPublicFile } from '@/lib/storage';
 
@@ -526,4 +526,81 @@ export async function stopRecurrenceAction(formData: FormData): Promise<void> {
   });
 
   revalidateVisit(job.id);
+}
+
+const REASON_MAX = 500;
+
+/** Cancels the whole job: every visit that hasn't already happened is cancelled too, so nothing is left dangling on the schedule. */
+export async function cancelJobAction(formData: FormData): Promise<void> {
+  const { tenant } = await requireRole();
+  const jobId = String(formData.get('jobId') ?? '');
+  const reason = String(formData.get('reason') ?? '').trim().slice(0, REASON_MAX) || null;
+
+  const db = tenantDb(tenant.id);
+  const job = await db.job.findUnique({ where: { id: jobId } });
+  if (!job || job.status === 'CANCELLED' || job.status === 'COMPLETED') return;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.visit.updateMany({
+      where: { jobId, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+      data: { status: 'CANCELLED' },
+    });
+    await tx.job.update({ where: { id: jobId }, data: { status: 'CANCELLED', cancelReason: reason } });
+  });
+
+  revalidateVisit(jobId);
+}
+
+/** Reopens a cancelled job — its status is recomputed from whatever visits it still has, same as if it had never been cancelled. */
+export async function reopenJobAction(formData: FormData): Promise<void> {
+  const { tenant } = await requireRole();
+  const jobId = String(formData.get('jobId') ?? '');
+
+  const db = tenantDb(tenant.id);
+  const job = await db.job.findUnique({ where: { id: jobId }, include: { visits: { select: { status: true } } } });
+  if (!job || job.status !== 'CANCELLED') return;
+
+  await prisma.job.update({
+    where: { id: jobId },
+    data: { status: computeStatusFromVisits(job.visits), cancelReason: null },
+  });
+
+  revalidateVisit(jobId);
+}
+
+/**
+ * Pauses a job — e.g. a non-urgent job set aside while the technician is pulled onto an
+ * emergency. Visits aren't touched: reschedule or cancel the affected one separately, the
+ * same way you would for any other visit. A paused job's status won't change on its own
+ * (no new recurring visits either) until it's resumed.
+ */
+export async function pauseJobAction(formData: FormData): Promise<void> {
+  const { tenant } = await requireRole();
+  const jobId = String(formData.get('jobId') ?? '');
+  const reason = String(formData.get('reason') ?? '').trim().slice(0, REASON_MAX) || null;
+
+  const db = tenantDb(tenant.id);
+  const job = await db.job.findUnique({ where: { id: jobId } });
+  if (!job || job.status === 'CANCELLED' || job.status === 'COMPLETED' || job.status === 'ON_HOLD') return;
+
+  await prisma.job.update({ where: { id: jobId }, data: { status: 'ON_HOLD', onHoldReason: reason } });
+
+  revalidateVisit(jobId);
+}
+
+/** Resumes a paused job — its status is recomputed from its current visits, same as coming off cancelled. */
+export async function resumeJobAction(formData: FormData): Promise<void> {
+  const { tenant } = await requireRole();
+  const jobId = String(formData.get('jobId') ?? '');
+
+  const db = tenantDb(tenant.id);
+  const job = await db.job.findUnique({ where: { id: jobId }, include: { visits: { select: { status: true } } } });
+  if (!job || job.status !== 'ON_HOLD') return;
+
+  await prisma.job.update({
+    where: { id: jobId },
+    data: { status: computeStatusFromVisits(job.visits), onHoldReason: null },
+  });
+
+  revalidateVisit(jobId);
 }
