@@ -314,6 +314,7 @@ const RecordPaymentSchema = z.object({
   date: z.iso.date({ error: 'Choose a date.' }),
   method: z.enum(MANUAL_PAYMENT_METHODS, { error: 'Choose how it was paid.' }),
   reference: z.string().trim().max(200).optional(),
+  moneyAccountId: z.string().uuid().optional().or(z.literal('')),
 });
 
 /** Records a payment the owner took by hand (cash, EFT, card machine), or a refund paid back to the client. */
@@ -356,6 +357,7 @@ export async function recordPaymentAction(_: FormState, formData: FormData): Pro
       receivedAt: new Date(`${d.date}T00:00:00Z`),
       reference: d.reference || null,
       userId: user.id,
+      moneyAccountId: d.moneyAccountId || null,
     })
   );
   if ('error' in result) return { error: result.error };

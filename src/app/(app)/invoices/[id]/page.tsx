@@ -12,6 +12,7 @@ import { depositDeductionRows } from '@/lib/invoices/deposits';
 import { prisma } from '@/lib/prisma';
 import { PAYMENT_METHOD_LABELS } from '@/lib/invoices/paymentMethods';
 import { reversePaymentAction } from '@/lib/invoices/actions';
+import { moneyAccountsWithBalances } from '@/lib/bookkeeping/queries';
 import { InvoiceBuilder } from '@/components/invoices/InvoiceBuilder';
 import { InvoiceDocument } from '@/components/invoices/InvoiceDocument';
 import { SendInvoiceButton } from '@/components/invoices/SendInvoiceButton';
@@ -40,7 +41,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const { id } = await params;
 
   const db = tenantDb(tenant.id);
-  const [invoice, catalogItems, origin] = await Promise.all([
+  const [invoice, catalogItems, origin, moneyAccounts] = await Promise.all([
     db.invoice.findUnique({
       where: { id },
       include: {
@@ -60,6 +61,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
     }),
     db.catalogItem.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
     siteOrigin(),
+    moneyAccountsWithBalances(db),
   ]);
   if (!invoice) notFound();
 
@@ -229,6 +231,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                   invoiceId={invoice.id}
                   amountCents={Math.abs(balanceCents)}
                   today={today}
+                  moneyAccounts={moneyAccounts}
                 />
               )}
             </div>

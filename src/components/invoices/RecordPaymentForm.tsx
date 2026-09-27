@@ -19,11 +19,14 @@ export function RecordPaymentForm({
   invoiceId,
   amountCents,
   today,
+  moneyAccounts = [],
 }: {
   kind: 'payment' | 'refund';
   invoiceId: string;
   amountCents: number;
   today: string;
+  /** The business's own cashbook accounts, if it has set any up — lets a recorded payment post as "money in" (docs/plans/bookkeeping.md, decision 6). */
+  moneyAccounts?: { id: string; name: string }[];
 }) {
   const isRefund = kind === 'refund';
   const [state, action, pending] = useActionState<FormState, FormData>(recordPaymentAction, undefined);
@@ -57,6 +60,22 @@ export function RecordPaymentForm({
         ))}
       </Select>
       <Field label="Reference (optional)" name="reference" placeholder="e.g. bank ref, receipt #" errors={state?.fieldErrors?.reference} />
+      {moneyAccounts.length > 0 && (
+        <Select
+          label={`Which account did this ${isRefund ? 'come out of' : 'land in'}? (optional)`}
+          name="moneyAccountId"
+          defaultValue=""
+          hint="Choose one to also record it in your cashbook."
+          errors={state?.fieldErrors?.moneyAccountId}
+        >
+          <option value="">Don&rsquo;t record in the cashbook</option>
+          {moneyAccounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </Select>
+      )}
       <SubmitButton pending={pending}>{isRefund ? 'Record refund' : 'Record payment'}</SubmitButton>
     </form>
   );

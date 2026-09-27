@@ -1,6 +1,7 @@
 import 'server-only';
 import type { Prisma, PaymentMethod } from '@prisma/client';
 import { syncJobInvoicingStatus } from '@/lib/jobs/status';
+import { asLedgerDb, postInvoicePaymentEntry, postInvoiceRefundEntry, reverseJournalEntry } from '@/lib/bookkeeping/ledger';
 
 /** What's still owed. Negative means the client has overpaid (e.g. credited after paying) and a refund is due. */
 export function invoiceBalanceCents(inv: { totalCents: number; creditedCents: number; paidCents: number }): number {
@@ -46,6 +47,9 @@ type MoneyEntryArgs = {
   receivedAt: Date;
   reference: string | null;
   userId: string;
+  // Which of the business's own money accounts this landed in — optional; only
+  // offered once the owner has started using the cashbook (docs/plans/bookkeeping.md, decision 6).
+  moneyAccountId?: string | null;
 };
 
 /**
@@ -60,7 +64,7 @@ export async function recordMoneyEntry(
   kind: 'payment' | 'refund',
   args: MoneyEntryArgs
 ): Promise<{ error: string } | { ok: true }> {
-  const { tenantId, invoiceId, amountCents, method, receivedAt, reference, userId } = args;
+  const { tenantId, invoiceId, amountCents, method, receivedAt, reference, userId, moneyAccountId } = args;
 
   if (!(await lockInvoice(tx, tenantId, invoiceId))) return { error: 'Invoice not found.' };
   const invoice = await tx.invoice.findUniqueOrThrow({
@@ -81,7 +85,7 @@ export async function recordMoneyEntry(
     if (amountCents > -balanceCents) return { error: "That's more than the refund due. Reload the page to see the current amount." };
   }
 
-  await tx.payment.create({
+  const payment = await tx.payment.create({
     data: {
       tenantId,
       invoiceId,
@@ -92,6 +96,18 @@ export async function recordMoneyEntry(
       reference: reference || undefined,
     },
   });
+
+  if (moneyAccountId) {
+    const moneyAccount = await tx.moneyAccount.findFirst({ where: { id: moneyAccountId, tenantId }, select: { ledgerAccountId: true } });
+    if (moneyAccount) {
+      const db = asLedgerDb(tx);
+      const memo = `Invoice payment${reference ? ` — ${reference}` : ''}`;
+      const post = kind === 'payment' ? postInvoicePaymentEntry : postInvoiceRefundEntry;
+      const entry = await post(db, tenantId, { date: receivedAt, memo, moneyAccountLedgerId: moneyAccount.ledgerAccountId, amountCents });
+      await tx.payment.update({ where: { id: payment.id }, data: { moneyAccountId, journalEntryId: entry.id } });
+    }
+  }
+
   await recalcInvoiceBalance(tx, invoiceId);
 
   await tx.auditLog.create({
@@ -129,6 +145,7 @@ export async function reversePayment(
   if (fresh.status !== 'SUCCEEDED') return { error: 'Only a received payment can be reversed.' };
 
   await tx.payment.update({ where: { id: paymentId }, data: { reversedAt: new Date() } });
+  if (fresh.journalEntryId) await reverseJournalEntry(asLedgerDb(tx), tenantId, fresh.journalEntryId);
   await recalcInvoiceBalance(tx, payment.invoiceId);
 
   await tx.auditLog.create({

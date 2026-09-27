@@ -9,9 +9,9 @@ import { tenantDb } from '@/lib/db';
 import { requireRole } from '@/lib/auth/session';
 import { parseMoneyInput, formatMoney } from '@/lib/money';
 import { uploadPublicFile } from '@/lib/storage';
-import { expenseMonthlyLimit, PLAN_LABEL } from '@/lib/plans/plans';
+import { expenseMonthlyLimit, canUse, minimumPlanFor, PLAN_LABEL } from '@/lib/plans/plans';
 import { ensureDefaultExpenseCategories } from '@/lib/bookkeeping/categories';
-import { createMoneyAccountWithOpeningBalance, postExpenseEntry, postTransfer } from '@/lib/bookkeeping/ledger';
+import { createMoneyAccountWithOpeningBalance, postExpenseEntry, postTransfer, postBillRaised, postBillPayment } from '@/lib/bookkeeping/ledger';
 import { currentMonthRange } from '@/lib/bookkeeping/dates';
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string[] | undefined>; ok?: string } | undefined;
@@ -45,8 +45,8 @@ export async function addMoneyAccountAction(_: FormState, formData: FormData): P
   redirect('/bookkeeping');
 }
 
-/** Uploads a slip photo the moment it's taken, ahead of the rest of the form — the same pattern as job/visit photos. */
-export async function uploadExpenseSlipAction(formData: FormData): Promise<{ url?: string; mimeType?: string; error?: string }> {
+/** Uploads a slip photo (expense or bill) the moment it's taken, ahead of the rest of the form — the same pattern as job/visit photos. */
+export async function uploadSlipPhotoAction(formData: FormData): Promise<{ url?: string; mimeType?: string; error?: string }> {
   const { tenant } = await requireRole();
   const photo = formData.get('photo');
   if (!(photo instanceof Blob) || photo.size === 0) return { error: 'Choose a photo first.' };
@@ -75,7 +75,7 @@ const AddExpenseSchema = z.object({
   clientGeneratedId: z.string().trim().min(1),
 });
 
-/** Records an expense — the "no more box of paper slips" feature. Call uploadExpenseSlipAction first and pass its url/mimeType through as plain fields. */
+/** Records an expense — the "no more box of paper slips" feature. Call uploadSlipPhotoAction first and pass its url/mimeType through as plain fields. */
 export async function addExpenseAction(_: FormState, formData: FormData): Promise<FormState> {
   const { tenant, membership } = await requireRole();
   const parsed = AddExpenseSchema.safeParse(Object.fromEntries(formData));
@@ -232,4 +232,122 @@ export async function addTransferAction(_: FormState, formData: FormData): Promi
 
   revalidatePath('/bookkeeping');
   return { ok: `Transferred ${formatMoney(principalCents, tenant.currencyCode)}.` };
+}
+
+function creditorsUpgradeMessage(): string {
+  return `Supplier bills are part of the ${PLAN_LABEL[minimumPlanFor('creditors')]} package. Upgrade to keep tracking who you owe.`;
+}
+
+const AddBillSchema = z.object({
+  supplier: z.string().trim().min(1, { error: 'Enter the supplier.' }),
+  billDate: z.iso.date({ error: 'Choose the bill date.' }),
+  dueDate: z.iso.date({ error: 'Choose a due date.' }),
+  categoryId: z.string().uuid({ error: 'Choose a category.' }),
+  amount: z.string().trim().min(1, { error: 'Enter an amount.' }),
+  vatStatus: z.enum(ExpenseVatStatus),
+  note: z.string().trim().max(500).optional(),
+  slipUrl: z.string().trim().optional(),
+  slipMimeType: z.string().trim().optional(),
+  clientGeneratedId: z.string().trim().min(1),
+});
+
+/** Records a supplier bill — "who I owe" — without paying it yet. */
+export async function addBillAction(_: FormState, formData: FormData): Promise<FormState> {
+  const { tenant, membership } = await requireRole();
+  if (!canUse(tenant, 'creditors')) return { error: creditorsUpgradeMessage() };
+
+  const parsed = AddBillSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+  const d = parsed.data;
+
+  const amountCents = parseMoneyInput(d.amount);
+  if (amountCents === null || amountCents <= 0) return { fieldErrors: { amount: ['Enter a valid amount more than zero.'] } };
+
+  const db = tenantDb(tenant.id);
+
+  const existing = await db.bill.findUnique({ where: { clientGeneratedId: d.clientGeneratedId } });
+  if (existing) return { ok: 'Bill saved.' }; // already saved — a flaky connection retried the submit
+
+  const category = await db.expenseCategory.findUnique({ where: { id: d.categoryId }, select: { ledgerAccountId: true, name: true } });
+  if (!category) return { fieldErrors: { categoryId: ['Category not found.'] } };
+
+  const billDate = new Date(`${d.billDate}T00:00:00Z`);
+  const dueDate = new Date(`${d.dueDate}T00:00:00Z`);
+  const memo = `${d.supplier} — ${category.name}`;
+
+  const entry = await postBillRaised(db, tenant.id, { date: billDate, memo, categoryLedgerAccountId: category.ledgerAccountId, amountCents });
+
+  await db.bill.create({
+    data: {
+      tenantId: tenant.id,
+      supplier: d.supplier,
+      billDate,
+      dueDate,
+      categoryId: d.categoryId,
+      amountCents,
+      vatStatus: d.vatStatus,
+      note: d.note || undefined,
+      slipUrl: d.slipUrl || undefined,
+      slipMimeType: d.slipMimeType || undefined,
+      createdByMembershipId: membership.id,
+      clientGeneratedId: d.clientGeneratedId,
+      journalEntryId: entry.id,
+    },
+  });
+
+  revalidatePath('/bookkeeping/bills');
+  revalidatePath('/bookkeeping');
+  return { ok: `Saved ${formatMoney(amountCents, tenant.currencyCode)} owed to ${d.supplier}.` };
+}
+
+const PayBillSchema = z.object({
+  billId: z.string().uuid(),
+  moneyAccountId: z.string().uuid({ error: 'Choose which account this was paid from.' }),
+  date: z.iso.date({ error: 'Choose a date.' }),
+  amount: z.string().trim().min(1, { error: 'Enter an amount.' }),
+});
+
+/** Pays a supplier bill in full or in part. */
+export async function payBillAction(_: FormState, formData: FormData): Promise<FormState> {
+  const { tenant } = await requireRole();
+  if (!canUse(tenant, 'creditors')) return { error: creditorsUpgradeMessage() };
+
+  const parsed = PayBillSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+  const d = parsed.data;
+
+  const amountCents = parseMoneyInput(d.amount);
+  if (amountCents === null || amountCents <= 0) return { fieldErrors: { amount: ['Enter a valid amount more than zero.'] } };
+
+  const db = tenantDb(tenant.id);
+  const [bill, moneyAccount] = await Promise.all([
+    db.bill.findUnique({ where: { id: d.billId }, select: { supplier: true, amountCents: true, paidCents: true, status: true } }),
+    db.moneyAccount.findUnique({ where: { id: d.moneyAccountId }, select: { ledgerAccountId: true, archived: true } }),
+  ]);
+  if (!bill || bill.status === 'PAID') return { error: 'Bill not found, or already fully paid.' };
+  if (!moneyAccount || moneyAccount.archived) return { fieldErrors: { moneyAccountId: ['Account not found.'] } };
+
+  const balanceCents = bill.amountCents - bill.paidCents;
+  if (amountCents > balanceCents) {
+    return { fieldErrors: { amount: [`Can't be more than the balance due, ${formatMoney(balanceCents, tenant.currencyCode)}.`] } };
+  }
+
+  const date = new Date(`${d.date}T00:00:00Z`);
+  const entry = await postBillPayment(db, tenant.id, {
+    date,
+    memo: `Bill payment — ${bill.supplier}`,
+    moneyAccountLedgerId: moneyAccount.ledgerAccountId,
+    amountCents,
+  });
+
+  const paidCents = bill.paidCents + amountCents;
+  await Promise.all([
+    db.billPayment.create({ data: { tenantId: tenant.id, billId: d.billId, moneyAccountId: d.moneyAccountId, amountCents, date, journalEntryId: entry.id } }),
+    db.bill.update({ where: { id: d.billId }, data: { paidCents, status: paidCents >= bill.amountCents ? 'PAID' : 'PARTIALLY_PAID' } }),
+  ]);
+
+  revalidatePath(`/bookkeeping/bills/${d.billId}`);
+  revalidatePath('/bookkeeping/bills');
+  revalidatePath('/bookkeeping');
+  return { ok: `Paid ${formatMoney(amountCents, tenant.currencyCode)} to ${bill.supplier}.` };
 }

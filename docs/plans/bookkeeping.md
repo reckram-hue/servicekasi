@@ -1,6 +1,6 @@
 # Bookkeeping (cashbook) — plan
 
-Status: Phase 1a built and tested 2026-09-27 — money accounts, expenses (with slip photos), transfers (incl. loan interest splits), categories, the 30/month Free Solo cap. Creditors/supplier bills and automatic invoice-payment posting (decision 6) are **not built yet** — see "Phase 1b" below.
+Status: Phase 1a and 1b built and tested 2026-09-28 — the full cashbook (accounts, expenses, transfers, categories), creditors/supplier bills, and automatic invoice-payment posting (decision 6). Bank CSV import and reconciliation (Phase 2) are not built.
 
 ## The goal
 
@@ -43,20 +43,21 @@ This is **not** an accounting package. No payroll, no tax returns, no balance sh
 
 Engine: every screen above posts through a hidden double-entry ledger (`src/lib/bookkeeping/ledger.ts`) — one `LedgerAccount` row per money account, category, and the one "opening balance equity" system account, so a future Xero/Sage/QuickBooks export (Phase 3) has real accounting codes to map onto without reshaping any data.
 
-## Phase 1b — Creditors and automatic invoice income (not built)
+## Phase 1b — Creditors and automatic invoice income (built)
 
-Deliberately left out of the first cut to ship a complete, working slice rather than a half-finished one touching several systems at once:
-
-**Creditors (supplier bills)**
-- Record a bill from a supplier (e.g. Builders Warehouse account), due date, amount, slip/invoice photo.
-- Pay it in full or in part from a money account.
-- "Who I owe" list, oldest first, with overdue highlighted.
+**Creditors (supplier bills)** — `/bookkeeping/bills`, `/bookkeeping/bills/new`, `/bookkeeping/bills/[id]`
+- Record a bill from a supplier: supplier, bill date, due date, category, amount, VAT, slip/invoice photo, note.
+- Raising a bill posts a journal entry (debit the expense category, credit the shared "Accounts payable" system account); paying it (in full or in part, from any money account) posts the reverse.
+- "Who I owe" — every bill not yet fully paid, oldest due date first, with an "Overdue" badge past the due date.
+- Team/Growth only (Free Solo doesn't get it, matching the "trial only" row below) — gated with `canUse(tenant, 'creditors')`, checked server-side in both `addBillAction` and `payBillAction`, not just hidden in the UI.
 
 **Decision 6 — money in from invoices, automatically**
-- Needs a `moneyAccountId` on `Payment` (which account a payment landed in) and a "Sales income" system ledger account, so a paid invoice posts a real "money in" entry the same way an expense posts "money out" today.
-- Manual payments (cash/EFT recorded by hand): ask which account it landed in at the point of recording.
-- Gateway payments (PayFast webhook): needs a rule for which account to post to when there's more than one bank account — punted until real usage shows what's needed.
-- Until this lands, the dashboard's "money out this month" figure is accurate but there is no "money in" figure yet — the cashbook only tracks spending, not income, which is still the main "replace the shoebox" use case.
+- `Payment` gained an optional `moneyAccountId` and `journalEntryId`. Recording a manual payment (cash/EFT/card by hand) now offers "Which account did this land in? (optional)" — choosing one posts a real journal entry (debit the money account, credit a new "Sales income" system account) the same way an expense posts "money out".
+- A refund posts the mirror entry; reversing a payment posts a correction (decision 5) rather than touching the original.
+- The `/bookkeeping` overview now shows both "Money in this month" and "Money out this month".
+- **Not done:** gateway (PayFast) payments don't post to the cashbook yet — there's no UI moment to ask which account, and picking one automatically needs a rule for when a business has more than one bank account. Still punted until real usage shows what's needed.
+
+**Known gap:** there's no "correct a mistaken expense" action yet (`Expense.reversedAt` exists in the schema but nothing sets it) — only bill and invoice payments can be reversed so far. Add a `reverseExpenseAction` when beta feedback asks for it.
 
 ## Phase 2 — Reconciliation and reports
 

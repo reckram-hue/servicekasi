@@ -31,6 +31,8 @@ const TENANT_MODELS = new Set<Prisma.ModelName>([
   'ExpenseCategory',
   'Expense',
   'JournalEntry',
+  'Bill',
+  'BillPayment',
 ]);
 
 const WHERE_OPS = new Set([

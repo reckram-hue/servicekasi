@@ -126,6 +126,8 @@ model Tenant {
   expenseCategories ExpenseCategory[]
   expenses         Expense[]
   journalEntries   JournalEntry[]
+  bills            Bill[]
+  billPayments     BillPayment[]
 }
 
 // ───────────────────────── People & access ─────────────────────────
@@ -695,6 +697,15 @@ model Payment {
   // deleted, so there's always a trail of what happened (decision 11).
   reversedAt        DateTime?
 
+  // Cashbook integration (docs/plans/bookkeeping.md, decision 6): which of the
+  // business's own money accounts this landed in, if the cashbook is in use.
+  // Both stay null for a payment recorded before bookkeeping was set up, or
+  // when the owner didn't choose an account — the payment itself is unaffected.
+  moneyAccountId String?
+  moneyAccount   MoneyAccount? @relation(fields: [moneyAccountId], references: [id])
+  journalEntryId String?       @unique
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
   @@unique([method, providerReference])
   @@index([tenantId, invoiceId])
 }
@@ -814,12 +825,14 @@ model PaymentAccount {
 // docs/plans/bookkeeping.md — Phase 1. Every money movement is a balanced
 // journal entry behind the scenes (decision 1); the owner only ever sees
 // "money in / money out / category". Nothing is ever deleted (decision 5) —
-// mistakes get a correcting entry via `reversedAt` / `reversesEntryId`.
+// a mistake is corrected with a new, opposite JournalEntry (sourceType
+// CORRECTION), never by editing or removing the original.
 
 enum LedgerAccountKind {
   ASSET
   LIABILITY
   EQUITY
+  INCOME
   EXPENSE
 }
 
@@ -839,7 +852,17 @@ enum JournalSourceType {
   OPENING_BALANCE
   EXPENSE
   TRANSFER
+  BILL_RAISED
+  BILL_PAYMENT
+  INVOICE_PAYMENT
+  INVOICE_REFUND
   CORRECTION
+}
+
+enum BillStatus {
+  OPEN
+  PARTIALLY_PAID
+  PAID
 }
 
 /// One row per money account, expense category, and fixed system account
@@ -880,7 +903,9 @@ model MoneyAccount {
   archived            Boolean          @default(false)
   createdAt           DateTime         @default(now())
 
-  expenses Expense[]
+  expenses     Expense[]
+  billPayments BillPayment[]
+  payments     Payment[]
 
   @@index([tenantId])
 }
@@ -900,6 +925,7 @@ model ExpenseCategory {
   createdAt       DateTime      @default(now())
 
   expenses Expense[]
+  bills    Bill[]
 
   @@index([tenantId])
 }
@@ -956,9 +982,63 @@ model JournalEntry {
   transferGroupId String?
   createdAt       DateTime          @default(now())
 
-  expense Expense?
+  expense       Expense?
+  bill          Bill?
+  billPayment   BillPayment?
+  paymentPosted Payment?
 
   @@index([tenantId, date])
   @@index([tenantId, sourceType])
   @@index([transferGroupId])
+}
+
+/// A supplier bill (decision: "who I owe"). Raising one posts a journal entry
+/// (debit the expense category, credit the shared "Accounts payable" system
+/// account); each payment against it posts another (debit Accounts payable,
+/// credit the money account it was paid from).
+model Bill {
+  id             String           @id @default(uuid())
+  tenantId       String
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  supplier       String
+  billDate       DateTime
+  dueDate        DateTime
+  categoryId     String
+  category       ExpenseCategory  @relation(fields: [categoryId], references: [id])
+  amountCents    Int
+  paidCents      Int              @default(0)
+  status         BillStatus       @default(OPEN)
+  vatStatus      ExpenseVatStatus @default(NO_VAT)
+  note           String?
+  slipUrl        String?
+  slipMimeType   String?
+
+  createdByMembershipId String?
+  clientGeneratedId     String?      @unique
+  journalEntryId        String       @unique
+  journalEntry          JournalEntry @relation(fields: [journalEntryId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  billPayments BillPayment[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, dueDate])
+}
+
+model BillPayment {
+  id             String       @id @default(uuid())
+  tenantId       String
+  tenant         Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  billId         String
+  bill           Bill         @relation(fields: [billId], references: [id])
+  moneyAccountId String
+  moneyAccount   MoneyAccount @relation(fields: [moneyAccountId], references: [id])
+  amountCents    Int
+  date           DateTime
+  journalEntryId String       @unique
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id])
+  createdAt      DateTime     @default(now())
+
+  @@index([tenantId, billId])
 }
