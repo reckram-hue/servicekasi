@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { startTransition, useActionState, useState, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
 import type { CatalogItemType } from '@prisma/client';
 import { createQuoteAction, updateQuoteAction, type FormState } from '@/lib/quotes/actions';
@@ -92,6 +92,21 @@ export function QuoteBuilder({
 
   const e = state?.fieldErrors;
 
+  // Submitting through a handler rather than <form action> skips React's
+  // automatic form reset, which would snap the controlled property <select>
+  // back to its first option and drop the property on the next save.
+  // Until the page is interactive the handler isn't attached, and a tap would
+  // do a plain browser submit instead, so keep the buttons disabled till then.
+  const noopSubscribe = () => () => {};
+  const interactive = useSyncExternalStore(noopSubscribe, () => true, () => false);
+  const busy = pending || !interactive;
+
+  function handleSubmit(ev: React.FormEvent<HTMLFormElement>) {
+    ev.preventDefault();
+    const formData = new FormData(ev.currentTarget, (ev.nativeEvent as SubmitEvent).submitter);
+    startTransition(() => action(formData));
+  }
+
   function updateLine(key: string, patch: Partial<LineRow>) {
     setLines((rows) => rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   }
@@ -141,7 +156,7 @@ export function QuoteBuilder({
   );
 
   return (
-    <form action={action}>
+    <form onSubmit={handleSubmit}>
       {isEdit && <input type="hidden" name="id" value={quoteId} />}
       <input type="hidden" name="clientId" value={client.id} />
       <input type="hidden" name="linesJson" value={linesJson} />
@@ -353,7 +368,7 @@ export function QuoteBuilder({
       </div>
 
       <div className="flex gap-3">
-        <SubmitButton pending={pending}>{isEdit ? 'Save changes' : 'Create quote'}</SubmitButton>
+        <SubmitButton pending={busy}>{isEdit ? 'Save changes' : 'Create quote'}</SubmitButton>
         <button
           type="button"
           onClick={() => router.back()}
