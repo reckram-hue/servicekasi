@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { formatMoney } from "@/lib/money";
 import { AdminDashboard } from "@/components/AdminDashboard";
+import { GettingStartedCard } from "@/components/onboarding/GettingStartedCard";
 import type { DashboardJob } from "@/lib/jobs/dashboard";
+import type { ChecklistItem } from "@/lib/onboarding/checklist";
 
 type AppShellProps = {
   moneyOwed?: { outstandingCents: number; overdueCents: number; overdueCount: number; currencyCode: string };
+  checklist?: ChecklistItem[];
   jobs: DashboardJob[];
   technicianCount: number;
   currencyCode: string;
@@ -14,9 +17,10 @@ type AppShellProps = {
 };
 
 /** The dashboard's own content — the sidebar and page chrome around it live in the shared (app) layout. */
-export function AppShell({ moneyOwed, jobs, technicianCount, currencyCode, finance, activeDispatches, unassignedCount }: AppShellProps) {
+export function AppShell({ moneyOwed, checklist, jobs, technicianCount, currencyCode, finance, activeDispatches, unassignedCount }: AppShellProps) {
   return (
     <div className="p-6">
+      {checklist && <GettingStartedCard items={checklist} />}
       {moneyOwed && (
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="rounded-xl border border-slate-800 bg-slate-900 p-5">

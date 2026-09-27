@@ -1,6 +1,6 @@
 # Plan: First-day setup (Phase 4)
 
-Status: Steps 1 and 4 done; Step 2 next. Written 2026-09-27.
+Status: Steps 1, 2 and 4 done; Step 3 next. Written 2026-09-27.
 
 Goal: a new business signs up and sends its first quote or invoice in under
 15 minutes, without reading a manual. Every step ends with something testable
@@ -40,12 +40,15 @@ in the browser, then a commit.
 **Test:** sign up as a plumber, see the price list filled; add the
 landscaping starter items too and confirm nothing is doubled.
 
-### Step 2 — Getting-started checklist  [Sonnet 5]
-- Dashboard card worked out from real data: business details, trade/price
-  list, first client, first quote sent, first invoice sent, bank details for
-  EFT, online payments (optional), authenticator app.
+### Step 2 — Getting-started checklist  [Sonnet 5] ✅ done
+- Dashboard card worked out from real data: business details, price list,
+  first client, first quote sent, first invoice issued, bank details,
+  online payments (optional), authenticator app.
 - Each item links straight to where it's done. "Hide checklist" stores
-  `Tenant.onboardingHiddenAt`; a "Getting started" link brings it back.
+  `Tenant.onboardingHiddenAt`.
+- A "Getting started" link in the sidebar (Operations group) appears only
+  while something's left to do, and opens `/getting-started`, the full
+  checklist plus a way to bring it back onto the dashboard.
 
 ### Step 3 — New quote / invoice from anywhere  [Sonnet 5]
 - `/quotes/new` and `/invoices/new` without a client show a first step:

@@ -20,6 +20,7 @@ import {
   ChevronRight,
   PanelLeftClose,
   LogOut,
+  Rocket,
 } from 'lucide-react';
 import type { Role } from '@prisma/client';
 
@@ -30,6 +31,7 @@ interface SidebarProps {
   logout: () => Promise<void>;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  showGettingStarted: boolean;
 }
 
 interface NavItem {
@@ -41,6 +43,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'Operations' },
+  { href: '/getting-started', label: 'Getting started', icon: Rocket, group: 'Operations' },
   { href: '/schedule', label: 'Schedule', icon: Calendar, group: 'Operations' },
   { href: '/jobs', label: 'Jobs', icon: Briefcase, group: 'Operations' },
   { href: '/quotes', label: 'Quotes', icon: FileSpreadsheet, group: 'Finance' },
@@ -57,15 +60,17 @@ const NAV_ITEMS: NavItem[] = [
 const ROLE_LABEL: Record<Role, string> = { OWNER: 'Owner', ADMIN: 'Admin', DISPATCHER: 'Office', TECHNICIAN: 'Technician' };
 
 /** The nav item whose href is the longest match for the current path, so e.g. /invoices/overdue highlights "Reminders", not "Invoices". */
-function activeHref(pathname: string): string | undefined {
-  return NAV_ITEMS.map((i) => i.href)
+function activeHref(items: NavItem[], pathname: string): string | undefined {
+  return items
+    .map((i) => i.href)
     .filter((href) => pathname === href || pathname.startsWith(`${href}/`))
     .sort((a, b) => b.length - a.length)[0];
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ userName, businessName, role, logout, isCollapsed, onToggleCollapse }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ userName, businessName, role, logout, isCollapsed, onToggleCollapse, showGettingStarted }) => {
   const pathname = usePathname();
-  const active = activeHref(pathname);
+  const navItems = showGettingStarted ? NAV_ITEMS : NAV_ITEMS.filter((i) => i.href !== '/getting-started');
+  const active = activeHref(navItems, pathname);
   const groups: NavItem['group'][] = ['Operations', 'Finance', 'Management', 'Settings'];
   const initials = userName
     .split(' ')
@@ -110,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ userName, businessName, role, 
 
       <nav className="no-scrollbar flex-1 space-y-5 overflow-y-auto px-2 py-4">
         {groups.map((group) => {
-          const groupItems = NAV_ITEMS.filter((item) => item.group === group);
+          const groupItems = navItems.filter((item) => item.group === group);
           return (
             <div key={group} className="space-y-1">
               {!isCollapsed && <div className="mb-1.5 px-3 text-[10px] font-bold tracking-widest text-slate-500 uppercase">{group}</div>}

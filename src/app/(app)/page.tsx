@@ -4,6 +4,7 @@ import { logoutAction } from '@/lib/auth/actions';
 import { tenantDb } from '@/lib/db';
 import { moneyOwedSummary } from '@/lib/invoices/overdue';
 import { dashboardJobs, collectedRevenue } from '@/lib/jobs/dashboard';
+import { getOnboardingChecklist, isChecklistComplete } from '@/lib/onboarding/checklist';
 import { AppShell } from '@/components/AppShell';
 import { TechnicianDay } from '@/components/technician/TechnicianDay';
 
@@ -30,20 +31,23 @@ export default async function Home() {
   }
 
   const db = tenantDb(tenant.id);
-  const [moneyOwed, revenue, jobs, technicianCount] = await Promise.all([
+  const [moneyOwed, revenue, jobs, technicianCount, checklistItems] = await Promise.all([
     moneyOwedSummary(db),
     collectedRevenue(db),
     dashboardJobs(db),
     db.membership.count({ where: { role: 'TECHNICIAN', active: true } }),
+    membership.role === 'OWNER' || membership.role === 'ADMIN' ? getOnboardingChecklist(db, tenant, user) : null,
   ]);
   const activeDispatches = jobs.filter((j) => j.status === 'SCHEDULED' || j.status === 'IN_PROGRESS').length;
   const unassignedCount = jobs.filter(
     (j) => (j.status === 'DRAFT' || j.status === 'SCHEDULED') && (j.nextVisit === null || j.nextVisit.technicianNames.length === 0)
   ).length;
+  const showChecklist = !!checklistItems && !tenant.onboardingHiddenAt && !isChecklistComplete(checklistItems);
 
   return (
     <AppShell
       moneyOwed={{ ...moneyOwed, currencyCode: tenant.currencyCode }}
+      checklist={showChecklist ? checklistItems! : undefined}
       jobs={jobs}
       technicianCount={technicianCount}
       currencyCode={tenant.currencyCode}

@@ -1,5 +1,7 @@
 import { requireAuth } from '@/lib/auth/session';
 import { logoutAction } from '@/lib/auth/actions';
+import { tenantDb } from '@/lib/db';
+import { getOnboardingChecklist, isChecklistComplete } from '@/lib/onboarding/checklist';
 import { AppChrome } from '@/components/AppChrome';
 
 /**
@@ -13,6 +15,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (membership.role === 'TECHNICIAN') return <>{children}</>;
 
+  const canManageOnboarding = membership.role === 'OWNER' || membership.role === 'ADMIN';
+  const onboardingIncomplete = canManageOnboarding && !isChecklistComplete(await getOnboardingChecklist(tenantDb(tenant.id), tenant, user));
+
   return (
     <AppChrome
       userName={user.name}
@@ -20,6 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       role={membership.role}
       logout={logoutAction}
       securityReminder={membership.role === 'OWNER' && !user.totpEnabled}
+      showGettingStarted={onboardingIncomplete}
     >
       {children}
     </AppChrome>

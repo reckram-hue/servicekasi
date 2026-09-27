@@ -82,6 +82,9 @@ model Tenant {
   // Chosen at signup; decides which starter price list is offered.
   industry Industry?
 
+  // The owner hid the "Getting started" checklist; it's still reachable from the sidebar.
+  onboardingHiddenAt DateTime?
+
   // Printed on every quote
   quoteTerms            String?
   defaultQuoteValidDays Int     @default(30)

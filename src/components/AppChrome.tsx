@@ -13,6 +13,7 @@ export function AppChrome({
   role,
   logout,
   securityReminder,
+  showGettingStarted,
   children,
 }: {
   userName: string;
@@ -20,6 +21,7 @@ export function AppChrome({
   role: Role;
   logout: () => Promise<void>;
   securityReminder: boolean;
+  showGettingStarted: boolean;
   children: React.ReactNode;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -34,6 +36,7 @@ export function AppChrome({
         logout={logout}
         isCollapsed={isCollapsed}
         onToggleCollapse={() => setIsCollapsed((c) => !c)}
+        showGettingStarted={showGettingStarted}
       />
       <main className={`min-w-0 flex-1 overflow-y-auto transition-all duration-300 ease-in-out ${isCollapsed ? 'pl-[72px]' : 'pl-64'}`}>
         {securityReminder && pathname !== '/settings/security' && (
