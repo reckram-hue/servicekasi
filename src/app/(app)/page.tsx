@@ -35,7 +35,7 @@ export default async function Home() {
     moneyOwedSummary(db),
     collectedRevenue(db),
     dashboardJobs(db),
-    db.membership.count({ where: { role: 'TECHNICIAN', active: true } }),
+    db.membership.count({ where: { OR: [{ role: 'TECHNICIAN' }, { doesFieldwork: true }], active: true } }),
     membership.role === 'OWNER' || membership.role === 'ADMIN' ? getOnboardingChecklist(db, tenant, user) : null,
   ]);
   const activeDispatches = jobs.filter((j) => j.status === 'SCHEDULED' || j.status === 'IN_PROGRESS').length;

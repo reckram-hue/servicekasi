@@ -193,6 +193,11 @@ model Membership {
   specialties     String[]
   colour          String? // calendar colour
 
+  // An OWNER/ADMIN/DISPATCHER who also does fieldwork themselves (common for
+  // sole operators): they can be assigned to visits without a second,
+  // separate technician login, and get their own "My Day" view.
+  doesFieldwork Boolean @default(false)
+
   createdAt DateTime @default(now())
 
   visitAssignments VisitAssignment[]

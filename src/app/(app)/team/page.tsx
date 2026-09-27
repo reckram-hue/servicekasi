@@ -1,5 +1,6 @@
 import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
+import { toggleDoesFieldworkAction } from '@/lib/auth/actions';
 import { AddTechnicianForm, ResetPinForm, TechnicianPhotoUpload } from '@/components/auth/TeamForms';
 
 const ROLE_LABEL = { OWNER: 'Owner', ADMIN: 'Admin', DISPATCHER: 'Office', TECHNICIAN: 'Technician' } as const;
@@ -34,6 +35,15 @@ export default async function TeamPage() {
                     <p className="text-xs text-slate-500">Shown to clients on the &ldquo;who&apos;s coming&rdquo; link before a visit.</p>
                     <ResetPinForm membershipId={m.id} />
                   </>
+                )}
+                {m.role !== 'TECHNICIAN' && (
+                  <form action={toggleDoesFieldworkAction} className="flex items-center gap-2">
+                    <input type="hidden" name="membershipId" value={m.id} />
+                    <input type="hidden" name="current" value={String(m.doesFieldwork)} />
+                    <button type="submit" className="text-xs font-medium text-amber-400 hover:underline">
+                      {m.doesFieldwork ? 'Stop assigning jobs to them' : 'Also does fieldwork — let me assign jobs to them'}
+                    </button>
+                  </form>
                 )}
               </div>
             ))}

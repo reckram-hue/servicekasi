@@ -73,18 +73,22 @@ const SignupSchema = z.object({
   email: z.email({ error: 'Enter a valid email address.' }).trim().toLowerCase(),
   password,
   industry: z.enum(Industry, { error: 'Choose your trade.' }),
+  fieldwork: z.enum(['SOLO', 'TEAM', 'MANAGE'], { error: 'Choose one.' }),
 });
 
 export async function signupAction(_: FormState, formData: FormData): Promise<FormState> {
   const parsed = SignupSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
-  const { businessName, name, email, industry } = parsed.data;
+  const { businessName, name, email, industry, fieldwork } = parsed.data;
 
   if (await prisma.user.findUnique({ where: { email } })) {
     return { fieldErrors: { email: ['An account with this email already exists. Log in instead.'] } };
   }
 
   const passwordHash = await hashSecret(parsed.data.password);
+  // "Just me" or "me + a team" means the owner can be assigned to their own
+  // jobs, with no separate technician login required.
+  const doesFieldwork = fieldwork !== 'MANAGE';
   const tenant = await prisma.tenant.create({
     data: {
       businessName,
@@ -93,7 +97,7 @@ export async function signupAction(_: FormState, formData: FormData): Promise<Fo
       trialEndsAt: new Date(Date.now() + 30 * 86_400_000),
       catalogItems: { createMany: { data: starterItemRows(industry) } },
       memberships: {
-        create: { role: 'OWNER', user: { create: { name, email, passwordHash } } },
+        create: { role: 'OWNER', doesFieldwork, user: { create: { name, email, passwordHash } } },
       },
     },
     include: { memberships: true },
@@ -300,6 +304,19 @@ export async function resetPinAction(_: FormState, formData: FormData): Promise<
   ]);
   revalidatePath('/team');
   return { ok: `PIN reset for ${membership.user.name}.` };
+}
+
+/** Lets an owner/admin/dispatcher be assigned to visits themselves, or stop being — e.g. a sole operator taking on their first hire. */
+export async function toggleDoesFieldworkAction(formData: FormData): Promise<void> {
+  const { tenant } = await requireRole(['OWNER', 'ADMIN']);
+  const membershipId = String(formData.get('membershipId') ?? '');
+  const current = formData.get('current') === 'true';
+
+  const membership = await prisma.membership.findFirst({ where: { id: membershipId, tenantId: tenant.id } });
+  if (!membership || membership.role === 'TECHNICIAN') return;
+
+  await prisma.membership.update({ where: { id: membershipId }, data: { doesFieldwork: !current } });
+  revalidatePath('/team');
 }
 
 /** So a client feels safe about who's arriving: shown on the "who's coming" link sent before a visit. */

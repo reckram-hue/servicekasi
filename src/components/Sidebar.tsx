@@ -21,6 +21,7 @@ import {
   PanelLeftClose,
   LogOut,
   Rocket,
+  Wrench,
 } from 'lucide-react';
 import type { Role } from '@prisma/client';
 
@@ -32,6 +33,7 @@ interface SidebarProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   showGettingStarted: boolean;
+  showMyDay: boolean;
 }
 
 interface NavItem {
@@ -44,6 +46,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'Operations' },
   { href: '/getting-started', label: 'Getting started', icon: Rocket, group: 'Operations' },
+  { href: '/my-day', label: 'My day', icon: Wrench, group: 'Operations' },
   { href: '/schedule', label: 'Schedule', icon: Calendar, group: 'Operations' },
   { href: '/jobs', label: 'Jobs', icon: Briefcase, group: 'Operations' },
   { href: '/quotes', label: 'Quotes', icon: FileSpreadsheet, group: 'Finance' },
@@ -67,9 +70,20 @@ function activeHref(items: NavItem[], pathname: string): string | undefined {
     .sort((a, b) => b.length - a.length)[0];
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ userName, businessName, role, logout, isCollapsed, onToggleCollapse, showGettingStarted }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  userName,
+  businessName,
+  role,
+  logout,
+  isCollapsed,
+  onToggleCollapse,
+  showGettingStarted,
+  showMyDay,
+}) => {
   const pathname = usePathname();
-  const navItems = showGettingStarted ? NAV_ITEMS : NAV_ITEMS.filter((i) => i.href !== '/getting-started');
+  const navItems = NAV_ITEMS.filter(
+    (i) => (i.href !== '/getting-started' || showGettingStarted) && (i.href !== '/my-day' || showMyDay)
+  );
   const active = activeHref(navItems, pathname);
   const groups: NavItem['group'][] = ['Operations', 'Finance', 'Management', 'Settings'];
   const initials = userName

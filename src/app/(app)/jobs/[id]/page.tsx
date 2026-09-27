@@ -85,7 +85,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         invoices: { orderBy: { createdAt: 'desc' } },
       },
     }),
-    db.membership.findMany({ where: { role: 'TECHNICIAN', active: true }, include: { user: true }, orderBy: { createdAt: 'asc' } }),
+    db.membership.findMany({ where: { OR: [{ role: 'TECHNICIAN' }, { doesFieldwork: true }], active: true }, include: { user: true }, orderBy: { createdAt: 'asc' } }),
   ]);
   if (!job) notFound();
 

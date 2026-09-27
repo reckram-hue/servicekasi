@@ -38,7 +38,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
 
   const db = tenantDb(tenant.id);
   const [technicians, visits] = await Promise.all([
-    db.membership.findMany({ where: { role: 'TECHNICIAN', active: true }, include: { user: true }, orderBy: { createdAt: 'asc' } }),
+    db.membership.findMany({ where: { OR: [{ role: 'TECHNICIAN' }, { doesFieldwork: true }], active: true }, include: { user: true }, orderBy: { createdAt: 'asc' } }),
     db.visit.findMany({
       where: { startsAt: { gte: rangeStart, lt: rangeEnd }, status: { not: 'CANCELLED' } },
       include: { job: { include: { client: true } }, assignments: true },

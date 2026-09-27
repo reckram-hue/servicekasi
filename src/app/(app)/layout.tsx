@@ -26,6 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       logout={logoutAction}
       securityReminder={membership.role === 'OWNER' && !user.totpEnabled}
       showGettingStarted={onboardingIncomplete}
+      showMyDay={membership.doesFieldwork}
     >
       {children}
     </AppChrome>

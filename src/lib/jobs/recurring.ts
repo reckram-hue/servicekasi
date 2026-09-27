@@ -53,7 +53,7 @@ export async function generateVisitsForJob(job: RecurringFields, today: string):
   if (dates.length > 0) {
     // Someone may have left since the contract was set up; don't assign visits to them.
     const technicians = await prisma.membership.findMany({
-      where: { tenantId: job.tenantId, id: { in: job.recurrenceTechnicianIds }, role: 'TECHNICIAN', active: true },
+      where: { tenantId: job.tenantId, id: { in: job.recurrenceTechnicianIds }, OR: [{ role: 'TECHNICIAN' }, { doesFieldwork: true }], active: true },
       select: { id: true },
     });
 

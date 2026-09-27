@@ -113,6 +113,48 @@ export function Select({
   );
 }
 
+export function RadioGroup({
+  label,
+  name,
+  options,
+  defaultValue,
+  errors,
+  hint,
+}: {
+  label: string;
+  name: string;
+  options: { value: string; label: string; hint?: string }[];
+  defaultValue?: string;
+  errors?: string[];
+  hint?: string;
+}) {
+  return (
+    <fieldset className="mb-4">
+      <legend className="mb-1 block text-sm font-medium text-slate-300">{label}</legend>
+      <div className="space-y-2">
+        {options.map((opt) => (
+          <label
+            key={opt.value}
+            className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-200 hover:border-slate-600 has-[:checked]:border-amber-400"
+          >
+            <input type="radio" name={name} value={opt.value} defaultChecked={defaultValue === opt.value} className="mt-0.5 h-4 w-4" required />
+            <span>
+              <span className="block">{opt.label}</span>
+              {opt.hint && <span className="block text-xs text-slate-500">{opt.hint}</span>}
+            </span>
+          </label>
+        ))}
+      </div>
+      {hint && !errors?.length && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
+      {errors?.map((e) => (
+        <span key={e} className="mt-1 block text-xs text-red-400">
+          {e}
+        </span>
+      ))}
+    </fieldset>
+  );
+}
+
 export function Checkbox({ label, name, ...rest }: { label: string; name: string } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <label className="mb-4 flex items-center gap-2 text-sm text-slate-300">

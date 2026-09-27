@@ -4,7 +4,7 @@ import { startTransition, useActionState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { signupAction } from '@/lib/auth/actions';
 import { INDUSTRIES, INDUSTRY_LABELS } from '@/lib/onboarding/industries';
-import { Field, FormMessage, Select, SubmitButton } from './ui';
+import { Field, FormMessage, RadioGroup, Select, SubmitButton } from './ui';
 
 const noopSubscribe = () => () => {};
 
@@ -43,6 +43,18 @@ export function SignupForm() {
           </option>
         ))}
       </Select>
+      <RadioGroup
+        label="Do you do the work yourself?"
+        name="fieldwork"
+        defaultValue="SOLO"
+        errors={e?.fieldwork}
+        options={[
+          { value: 'SOLO', label: "Yes, it's just me" },
+          { value: 'TEAM', label: 'Yes, and I also have a team' },
+          { value: 'MANAGE', label: "No, I manage — my team does the work" },
+        ]}
+        hint="This decides whether you can be assigned to your own jobs. You can change it later in Team settings."
+      />
       <Field label="Your name" name="name" autoComplete="name" required errors={e?.name} />
       <Field label="Email" name="email" type="email" autoComplete="email" required errors={e?.email} />
       <Field

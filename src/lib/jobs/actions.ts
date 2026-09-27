@@ -124,7 +124,7 @@ async function validTechnicianIds(db: TenantDb, json: string): Promise<{ ids: st
   } catch {
     return { error: 'Assign at least one technician.' };
   }
-  const found = await db.membership.count({ where: { id: { in: ids }, role: 'TECHNICIAN', active: true } });
+  const found = await db.membership.count({ where: { id: { in: ids }, OR: [{ role: 'TECHNICIAN' }, { doesFieldwork: true }], active: true } });
   if (found !== ids.length) return { error: 'One or more technicians could not be found.' };
   return { ids };
 }
