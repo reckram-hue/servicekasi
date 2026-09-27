@@ -22,7 +22,3 @@ export async function pausedMembershipIds(tenant: Pick<Tenant, 'id' | 'plan' | '
   });
   return new Set(active.slice(limit).map((m) => m.id));
 }
-
-export async function isMembershipPaused(tenant: Pick<Tenant, 'id' | 'plan' | 'subscriptionStatus' | 'trialEndsAt'>, membershipId: string) {
-  return (await pausedMembershipIds(tenant)).has(membershipId);
-}
