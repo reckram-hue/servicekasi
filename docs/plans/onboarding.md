@@ -1,6 +1,6 @@
 # Plan: First-day setup (Phase 4)
 
-Status: agreed direction, Step 1 in progress. Written 2026-09-27.
+Status: Steps 1 and 4 done; Step 2 next. Written 2026-09-27.
 
 Goal: a new business signs up and sends its first quote or invoice in under
 15 minutes, without reading a manual. Every step ends with something testable
@@ -30,7 +30,7 @@ in the browser, then a commit.
 
 ## Steps
 
-### Step 1 — Trade and starter price list  [Opus 5.5]
+### Step 1 — Trade and starter price list  [Opus 5.5] ✅ done
 - `Tenant.industry` (optional).
 - Starter price lists for the six trades (placeholder prices, clearly
   editable).
@@ -53,10 +53,13 @@ landscaping starter items too and confirm nothing is doubled.
   email, address), then go straight into the builder.
 - "+ New quote" and "+ New invoice" buttons on the dashboard.
 
-### Step 4 — When to require the authenticator app  [Opus 5.5]
-Today a new owner must set up an authenticator app before seeing anything.
-That's strong security but heavy first-day friction. Decision needed (see
-below).
+### Step 4 — Authenticator app: "Skip for now"  [Opus 5.5] ✅ done
+- After signup the owner still sees the authenticator setup first, now with
+  a warning and "Skip for now".
+- Skipping is recorded (`User.totpSkippedAt` plus an audit log entry), as a
+  record that the owner declined.
+- A reminder bar shows on every page until it's switched on.
+- Connecting online payments still requires it (those settings move money).
 
 ## Later
 - CSV client import.

@@ -99,7 +99,7 @@ export async function signupAction(_: FormState, formData: FormData): Promise<Fo
   });
 
   await createSession({ userId: tenant.memberships[0].userId, tenantId: tenant.id });
-  // Owners must switch on the authenticator app before using the app.
+  // Owners are asked to set up the authenticator app first (they may skip for now).
   redirect('/settings/security');
 }
 
@@ -209,6 +209,19 @@ export async function confirmTotpSetupAction(_: FormState, formData: FormData): 
     where: { id: user.id },
     data: { totpEnabled: true, totpLastUsedStep: step },
   });
+  redirect('/');
+}
+
+/** Owner chose "Skip for now". Recorded with a date so there's a trail that they declined. */
+export async function skipTotpSetupAction() {
+  const { user, tenant } = await requireAuth();
+  if (user.totpEnabled) redirect('/');
+  if (!user.totpSkippedAt) {
+    await prisma.user.update({ where: { id: user.id }, data: { totpSkippedAt: new Date() } });
+    await prisma.auditLog.create({
+      data: { tenantId: tenant.id, userId: user.id, action: 'security.authenticator_skipped', entityType: 'User', entityId: user.id },
+    });
+  }
   redirect('/');
 }
 

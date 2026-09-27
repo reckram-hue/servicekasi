@@ -39,6 +39,7 @@ const PayFastSchema = z.object({
 /** Saves the business's own PayFast account. Blank key/passphrase keeps what's stored. */
 export async function savePayFastAction(_: FormState, formData: FormData): Promise<FormState> {
   const { tenant, user } = await requireRole(['OWNER', 'ADMIN']);
+  if (!user.totpEnabled) return { error: 'Switch on your authenticator app (Settings → Security) before connecting online payments.' };
   const parsed = PayFastSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
   const d = parsed.data;

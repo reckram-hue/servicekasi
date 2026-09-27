@@ -10,8 +10,8 @@ import { TechnicianDay } from '@/components/technician/TechnicianDay';
 export default async function Home() {
   const { user, membership, tenant } = await requireAuth();
 
-  // Owners must have the authenticator app switched on before going further.
-  if (membership.role === 'OWNER' && !user.totpEnabled) redirect('/settings/security');
+  // Owners are asked to set up the authenticator app first; they may choose "Skip for now".
+  if (membership.role === 'OWNER' && !user.totpEnabled && !user.totpSkippedAt) redirect('/settings/security');
 
   if (membership.role === 'TECHNICIAN') {
     return (

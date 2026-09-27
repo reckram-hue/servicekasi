@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { AuthCard } from '@/components/auth/ui';
 import { CodeForm } from '@/components/auth/CodeForm';
 import { requireAuth } from '@/lib/auth/session';
-import { confirmTotpSetupAction, ensureTotpSetupSecret } from '@/lib/auth/actions';
+import { confirmTotpSetupAction, ensureTotpSetupSecret, skipTotpSetupAction } from '@/lib/auth/actions';
 import { totpUri } from '@/lib/auth/totp';
 
 export default async function SecurityPage() {
@@ -24,14 +24,14 @@ export default async function SecurityPage() {
 
   const secret = (await ensureTotpSetupSecret())!;
   const qr = await QRCode.toDataURL(totpUri(secret, user.email ?? user.name), { margin: 1, width: 220 });
-  const required = membership.role === 'OWNER';
+  const isOwner = membership.role === 'OWNER';
 
   return (
     <AuthCard
       title="Protect your account"
       subtitle={
-        required
-          ? 'As the owner you can see money, bank details and customer information, so an authenticator app is required.'
+        isOwner
+          ? 'As the owner you can see money, bank details and customer information, so we strongly recommend an authenticator app.'
           : 'Add a second step to your login for extra safety.'
       }
     >
@@ -52,6 +52,32 @@ export default async function SecurityPage() {
         <li>Type the 6-digit code the app now shows:</li>
       </ol>
       <CodeForm action={confirmTotpSetupAction} button="Switch on" />
+
+      {isOwner && (
+        <div className="mt-6 border-t border-slate-800 pt-4 text-center">
+          {user.totpSkippedAt ? (
+            <>
+              <p className="mb-2 text-xs text-slate-500">
+                You chose to skip this on{' '}
+                {user.totpSkippedAt.toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' })}.
+              </p>
+              <Link href="/" className="text-sm text-slate-400 hover:underline">
+                Not now, back to dashboard
+              </Link>
+            </>
+          ) : (
+            <form action={skipTotpSetupAction}>
+              <p className="mb-3 text-xs text-slate-500">
+                Without it, anyone who gets hold of your password can see your money, clients and bank details. You can switch it on
+                any time under Settings → Security. You&apos;ll need it before connecting online payments.
+              </p>
+              <button type="submit" className="text-sm text-slate-400 underline hover:text-slate-200">
+                Skip for now
+              </button>
+            </form>
+          )}
+        </div>
+      )}
     </AuthCard>
   );
 }

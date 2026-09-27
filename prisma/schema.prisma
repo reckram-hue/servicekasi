@@ -140,6 +140,7 @@ model User {
   totpSecret       String? // base32; set once the authenticator app is confirmed
   totpEnabled      Boolean @default(false)
   totpLastUsedStep Int? // blocks re-using the same 6-digit code
+  totpSkippedAt    DateTime? // owner chose "Skip for now": kept as a record that they declined
 
   // Technicians: phone + PIN, set/reset by the business owner
   pinHash String?

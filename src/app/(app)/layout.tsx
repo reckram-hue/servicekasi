@@ -14,7 +14,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (membership.role === 'TECHNICIAN') return <>{children}</>;
 
   return (
-    <AppChrome userName={user.name} businessName={tenant.businessName} role={membership.role} logout={logoutAction}>
+    <AppChrome
+      userName={user.name}
+      businessName={tenant.businessName}
+      role={membership.role}
+      logout={logoutAction}
+      securityReminder={membership.role === 'OWNER' && !user.totpEnabled}
+    >
       {children}
     </AppChrome>
   );
