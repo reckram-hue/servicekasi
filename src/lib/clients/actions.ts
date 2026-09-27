@@ -1,10 +1,12 @@
 'use server';
 
+import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { tenantDb } from '@/lib/db';
+import { tenantDb, type TenantDb } from '@/lib/db';
 import { requireRole } from '@/lib/auth/session';
 import { normalizeSaPhone } from '@/lib/southAfrica';
+import type { Tenant } from '@prisma/client';
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string[] | undefined>; ok?: string } | undefined;
 
@@ -43,14 +45,8 @@ function hasAddress(d: { street?: string; city?: string }) {
   return !!(d.street && d.city);
 }
 
-export async function createClientAction(_: FormState, formData: FormData): Promise<FormState> {
-  const { tenant } = await requireRole();
-  const parsed = ClientSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
-  const d = parsed.data;
-
-  const db = tenantDb(tenant.id);
-  await db.client.create({
+async function createClient(db: TenantDb, tenant: Pick<Tenant, 'id' | 'countryCode'>, d: z.infer<typeof ClientSchema>) {
+  return db.client.create({
     data: {
       tenantId: tenant.id, // tenantDb also injects this; kept explicit to satisfy TypeScript
       firstName: d.firstName,
@@ -78,9 +74,35 @@ export async function createClientAction(_: FormState, formData: FormData): Prom
         : undefined,
     },
   });
+}
+
+export async function createClientAction(_: FormState, formData: FormData): Promise<FormState> {
+  const { tenant } = await requireRole();
+  const parsed = ClientSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+  const d = parsed.data;
+
+  await createClient(tenantDb(tenant.id), tenant, d);
 
   revalidatePath('/clients');
   return { ok: `${d.firstName} was added.` };
+}
+
+// Only these two builders start from "no client yet", so a new client can go straight into one.
+const REDIRECT_TARGETS = new Set(['/quotes/new', '/invoices/new']);
+
+const ClientForRedirectSchema = ClientSchema.and(z.object({ returnTo: z.enum(['/quotes/new', '/invoices/new']) }));
+
+/** Same as createClientAction, but for starting a quote or invoice with a brand-new client: creates them, then goes straight into the builder. */
+export async function createClientForRedirectAction(_: FormState, formData: FormData): Promise<FormState> {
+  const { tenant } = await requireRole();
+  const parsed = ClientForRedirectSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+  const { returnTo, ...d } = parsed.data;
+  if (!REDIRECT_TARGETS.has(returnTo)) return { error: 'Something went wrong. Please try again.' };
+
+  const client = await createClient(tenantDb(tenant.id), tenant, d);
+  redirect(`${returnTo}?client=${client.id}`);
 }
 
 const UpdateClientSchema = ClientSchema.and(z.object({ id: z.string().uuid() }));

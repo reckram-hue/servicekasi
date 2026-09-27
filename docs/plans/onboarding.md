@@ -1,6 +1,6 @@
 # Plan: First-day setup (Phase 4)
 
-Status: Steps 1, 2 and 4 done; Step 3 next. Written 2026-09-27.
+Status: Steps 1, 2, 3 and 4 done. Written 2026-09-27.
 
 Goal: a new business signs up and sends its first quote or invoice in under
 15 minutes, without reading a manual. Every step ends with something testable
@@ -50,13 +50,14 @@ landscaping starter items too and confirm nothing is doubled.
   while something's left to do, and opens `/getting-started`, the full
   checklist plus a way to bring it back onto the dashboard.
 
-### Step 3 — New quote / invoice from anywhere  [Sonnet 5]
+### Step 3 — New quote / invoice from anywhere  [Sonnet 5] ✅ done
 - `/quotes/new` and `/invoices/new` without a client show a first step:
   search existing clients, or add a new one right there (name, phone or
-  email, address), then go straight into the builder.
-- "+ New quote" and "+ New invoice" buttons on the dashboard.
+  email, address), then go straight into the builder with them.
+- "+ New quote" and "+ New invoice" buttons on the dashboard, next to
+  "+ New job".
 
-### Step 4 — Authenticator app: "Skip for now"  [Opus 5.5] ✅ done
+## Step 4 — Authenticator app: "Skip for now"  [Opus 5.5] ✅ done
 - After signup the owner still sees the authenticator setup first, now with
   a warning and "Skip for now".
 - Skipping is recorded (`User.totpSkippedAt` plus an audit log entry), as a

@@ -4,6 +4,7 @@ import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
 import { isoDateDaysFromNow } from '@/lib/dates';
 import { QuoteBuilder } from '@/components/quotes/QuoteBuilder';
+import { ClientPickerOrCreate } from '@/components/clients/ClientPickerOrCreate';
 
 function displayName(c: { firstName: string; lastName: string | null; companyName: string | null }) {
   const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
@@ -17,14 +18,38 @@ function propertyLabel(p: { street: string; suburb: string | null; city: string 
 export default async function NewQuotePage({ searchParams }: { searchParams: Promise<{ client?: string }> }) {
   const { tenant } = await requireRole();
   const { client: clientId } = await searchParams;
-  if (!clientId) redirect('/clients');
+
+  if (!clientId) {
+    const clients = await tenantDb(tenant.id).client.findMany({
+      where: { archived: false },
+      select: { id: true, firstName: true, lastName: true, companyName: true, phone: true, email: true },
+      orderBy: { firstName: 'asc' },
+      take: 200,
+    });
+    return (
+      <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
+        <div className="mx-auto max-w-2xl">
+          <Link href="/quotes" className="text-sm text-amber-400 hover:underline">
+            ← Quotes
+          </Link>
+          <div className="mt-2">
+            <ClientPickerOrCreate
+              clients={clients.map((c) => ({ id: c.id, name: displayName(c), phone: c.phone, email: c.email }))}
+              returnTo="/quotes/new"
+              label="quote"
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const db = tenantDb(tenant.id);
   const [client, catalogItems] = await Promise.all([
     db.client.findUnique({ where: { id: clientId }, include: { properties: true } }),
     db.catalogItem.findMany({ where: { active: true }, orderBy: { name: 'asc' } }),
   ]);
-  if (!client) redirect('/clients');
+  if (!client) redirect('/quotes/new');
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">

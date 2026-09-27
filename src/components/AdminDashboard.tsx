@@ -105,6 +105,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
           </div>
 
+          <Link
+            href="/quotes/new"
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50"
+          >
+            + New quote
+          </Link>
+          <Link
+            href="/invoices/new"
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-700 shadow-xs transition-colors hover:bg-slate-50"
+          >
+            + New invoice
+          </Link>
           <Link href="/jobs" className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-medium text-white shadow-xs transition-colors hover:bg-slate-800">
             + New job
           </Link>
