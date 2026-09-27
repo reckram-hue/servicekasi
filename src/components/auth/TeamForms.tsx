@@ -1,7 +1,8 @@
 'use client';
 
-import { useActionState } from 'react';
-import { addTechnicianAction, resetPinAction } from '@/lib/auth/actions';
+import { useActionState, useState } from 'react';
+import { addTechnicianAction, resetPinAction, updateTechnicianPhotoAction } from '@/lib/auth/actions';
+import { resizeImageToJpeg } from '@/lib/imageResize';
 import { Field, FormMessage, SubmitButton } from './ui';
 
 const LANGUAGES: [string, string][] = [
@@ -56,6 +57,48 @@ export function AddTechnicianForm() {
       </label>
       <SubmitButton pending={pending}>Add technician</SubmitButton>
     </form>
+  );
+}
+
+/** Lets an owner/admin set (or replace) a technician's photo, shown to clients on the "who's coming" link. */
+export function TechnicianPhotoUpload({ membershipId, photoUrl }: { membershipId: string; photoUrl: string | null }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const blob = await resizeImageToJpeg(file, 600, 0.85);
+      const fd = new FormData();
+      fd.set('membershipId', membershipId);
+      fd.set('photo', blob, 'photo.jpg');
+      const result = await updateTechnicianPhotoAction(undefined, fd);
+      if (result?.error) setError(result.error);
+    } catch {
+      setError('Could not process that photo. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      {photoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photoUrl} alt="" className="h-8 w-8 rounded-full border border-slate-700 object-cover" />
+      ) : (
+        <div className="h-8 w-8 rounded-full border border-dashed border-slate-700" />
+      )}
+      <label className={`cursor-pointer text-xs font-medium text-amber-400 hover:underline ${busy ? 'opacity-60' : ''}`}>
+        {busy ? 'Uploading…' : photoUrl ? 'Change photo' : 'Add photo'}
+        <input type="file" accept="image/*" onChange={handleFile} disabled={busy} className="hidden" />
+      </label>
+      {error && <span className="text-xs text-red-400">{error}</span>}
+    </div>
   );
 }
 

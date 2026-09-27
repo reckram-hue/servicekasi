@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
@@ -12,6 +13,14 @@ import { createDepositInvoiceAction, createInvoiceFromJobAction } from '@/lib/in
 import { invoiceBadge } from '@/lib/invoices/status';
 import { AddVisitForm } from '@/components/jobs/AddVisitForm';
 import { RecurrenceForm } from '@/components/jobs/RecurrenceForm';
+import { NotifyClientButton } from '@/components/jobs/NotifyClientButton';
+
+async function siteOrigin(): Promise<string> {
+  const h = await headers();
+  const host = h.get('host') ?? 'localhost:3000';
+  const protocol = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+  return `${protocol}://${host}`;
+}
 
 function displayName(c: { firstName: string; lastName: string | null; companyName: string | null }) {
   const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
@@ -55,6 +64,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   const tz = tenant.timezone;
 
   await topUpRecurringVisits(tenant.id, tz);
+  const origin = await siteOrigin();
 
   const db = tenantDb(tenant.id);
   const [job, technicians] = await Promise.all([
@@ -148,6 +158,19 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
             <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${VISIT_STATUS_STYLES[v.status] ?? 'bg-slate-800 text-slate-300'}`}>
               {v.occurrenceDate && v.status === 'CANCELLED' ? 'SKIPPED' : v.status.replace('_', ' ')}
             </span>
+            {(v.status === 'SCHEDULED' || v.status === 'EN_ROUTE') && v.assignments.length > 0 && (
+              <NotifyClientButton
+                publicUrl={`${origin}/eta/${v.publicToken}`}
+                clientPhone={job.client.phone}
+                clientFirstName={job.client.firstName}
+                businessName={tenant.tradingName || tenant.businessName}
+                suburb={job.property?.suburb ?? job.property?.city ?? null}
+                date={formatDateStr(date)}
+                time={localTimeStr(v.startsAt, tz)}
+                technicianFirstNames={v.assignments.map((a) => a.membership.user.name.split(' ')[0])}
+                enRoute={v.status === 'EN_ROUTE'}
+              />
+            )}
             {v.status === 'SCHEDULED' && (
               <form action={cancelVisitAction}>
                 <input type="hidden" name="visitId" value={v.id} />

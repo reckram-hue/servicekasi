@@ -1,6 +1,6 @@
 import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
-import { AddTechnicianForm, ResetPinForm } from '@/components/auth/TeamForms';
+import { AddTechnicianForm, ResetPinForm, TechnicianPhotoUpload } from '@/components/auth/TeamForms';
 
 const ROLE_LABEL = { OWNER: 'Owner', ADMIN: 'Admin', DISPATCHER: 'Office', TECHNICIAN: 'Technician' } as const;
 
@@ -28,7 +28,13 @@ export default async function TeamPage() {
                     </div>
                   </div>
                 </div>
-                {m.role === 'TECHNICIAN' && <ResetPinForm membershipId={m.id} />}
+                {m.role === 'TECHNICIAN' && (
+                  <>
+                    <TechnicianPhotoUpload membershipId={m.id} photoUrl={m.user.photoUrl} />
+                    <p className="text-xs text-slate-500">Shown to clients on the &ldquo;who&apos;s coming&rdquo; link before a visit.</p>
+                    <ResetPinForm membershipId={m.id} />
+                  </>
+                )}
               </div>
             ))}
           </div>

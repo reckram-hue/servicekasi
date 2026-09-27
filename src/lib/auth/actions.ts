@@ -7,6 +7,7 @@ import { Industry, type User } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { normalizeSaPhone } from '@/lib/southAfrica';
 import { starterItemRows } from '@/lib/onboarding/starterPriceList';
+import { deletePublicFile, uploadPublicFile } from '@/lib/storage';
 import { hashSecret, verifySecret } from './crypto';
 import { generateTotpSecret, verifyTotp } from './totp';
 import { createSession, deleteCurrentSession, getRawSession, requireAuth, requireRole } from './session';
@@ -299,4 +300,30 @@ export async function resetPinAction(_: FormState, formData: FormData): Promise<
   ]);
   revalidatePath('/team');
   return { ok: `PIN reset for ${membership.user.name}.` };
+}
+
+/** So a client feels safe about who's arriving: shown on the "who's coming" link sent before a visit. */
+export async function updateTechnicianPhotoAction(_: FormState, formData: FormData): Promise<FormState> {
+  const { tenant } = await requireRole(['OWNER', 'ADMIN']);
+  const membershipId = String(formData.get('membershipId') ?? '');
+  const photo = formData.get('photo');
+
+  const membership = await prisma.membership.findFirst({ where: { id: membershipId, tenantId: tenant.id }, include: { user: true } });
+  if (!membership) return { error: 'Team member not found.' };
+  if (!(photo instanceof Blob) || photo.size === 0) return { error: 'Choose a photo.' };
+
+  const buffer = Buffer.from(await photo.arrayBuffer());
+  let url: string;
+  try {
+    url = await uploadPublicFile(tenant.id, buffer, 'image/jpeg');
+  } catch {
+    return { error: 'Could not upload that photo. Try again.' };
+  }
+
+  const oldUrl = membership.user.photoUrl;
+  await prisma.user.update({ where: { id: membership.userId }, data: { photoUrl: url } });
+  if (oldUrl) await deletePublicFile(oldUrl);
+
+  revalidatePath('/team');
+  return { ok: 'Photo updated.' };
 }
