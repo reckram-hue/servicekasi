@@ -42,6 +42,8 @@ function blankLine(): LineRow {
   };
 }
 
+const noopSubscribe = () => () => {};
+
 function toMoneyLine(row: LineRow, vatRegistered: boolean, defaultTaxRateBp: number): MoneyLineInput {
   return {
     quantity: parseFloat(row.quantity) || 0,
@@ -97,7 +99,6 @@ export function QuoteBuilder({
   // back to its first option and drop the property on the next save.
   // Until the page is interactive the handler isn't attached, and a tap would
   // do a plain browser submit instead, so keep the buttons disabled till then.
-  const noopSubscribe = () => () => {};
   const interactive = useSyncExternalStore(noopSubscribe, () => true, () => false);
   const busy = pending || !interactive;
 
