@@ -2,10 +2,13 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { CatalogItemType } from '@prisma/client';
+import { CatalogItemType, Industry } from '@prisma/client';
 import { tenantDb } from '@/lib/db';
 import { requireRole } from '@/lib/auth/session';
 import { parseMoneyInput } from '@/lib/money';
+import { prisma } from '@/lib/prisma';
+import { INDUSTRY_LABELS } from '@/lib/onboarding/industries';
+import { addStarterPriceList } from '@/lib/onboarding/starterPriceList';
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string[] | undefined>; ok?: string } | undefined;
 
@@ -95,4 +98,24 @@ export async function toggleActiveCatalogItemAction(formData: FormData): Promise
   const db = tenantDb(tenant.id);
   await db.catalogItem.update({ where: { id }, data: { active: !currentlyActive } });
   revalidatePath('/settings/price-list');
+}
+
+const StarterSchema = z.object({ industry: z.enum(Industry, { error: 'Choose a trade.' }) });
+
+export async function addStarterItemsAction(_: FormState, formData: FormData): Promise<FormState> {
+  const { tenant } = await requireRole(['OWNER', 'ADMIN']);
+  const parsed = StarterSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+  const { industry } = parsed.data;
+
+  const { added, skipped } = await addStarterPriceList(tenantDb(tenant.id), tenant.id, industry);
+  // The first trade picked becomes the business's trade; adding another trade's items later doesn't change it.
+  if (!tenant.industry) await prisma.tenant.update({ where: { id: tenant.id }, data: { industry } });
+
+  revalidatePath('/settings/price-list');
+  const label = INDUSTRY_LABELS[industry];
+  if (added === 0) return { ok: `You already have all the ${label} starter items.` };
+  return {
+    ok: `Added ${added} ${label} item${added === 1 ? '' : 's'}.${skipped ? ` Skipped ${skipped} you already had.` : ''} Change the prices to your own below.`,
+  };
 }

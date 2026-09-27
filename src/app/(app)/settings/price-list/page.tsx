@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
 import { PriceListPageClient } from '@/components/priceList/PriceListPageClient';
+import { StarterItemsPanel } from '@/components/priceList/StarterItemsPanel';
 
 export default async function PriceListPage() {
   const { tenant } = await requireRole(['OWNER', 'ADMIN']);
@@ -17,6 +18,7 @@ export default async function PriceListPage() {
           ← Business settings
         </Link>
         <h1 className="mt-2 mb-6 text-2xl font-bold">Price list</h1>
+        <StarterItemsPanel industry={tenant.industry} />
         <PriceListPageClient items={items} currencyCode={tenant.currencyCode} />
       </div>
     </div>

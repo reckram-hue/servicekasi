@@ -3,9 +3,10 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import type { User } from '@prisma/client';
+import { Industry, type User } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { normalizeSaPhone } from '@/lib/southAfrica';
+import { starterItemRows } from '@/lib/onboarding/starterPriceList';
 import { hashSecret, verifySecret } from './crypto';
 import { generateTotpSecret, verifyTotp } from './totp';
 import { createSession, deleteCurrentSession, getRawSession, requireAuth, requireRole } from './session';
@@ -70,12 +71,13 @@ const SignupSchema = z.object({
   name: z.string().trim().min(2, { error: 'Enter your name.' }),
   email: z.email({ error: 'Enter a valid email address.' }).trim().toLowerCase(),
   password,
+  industry: z.enum(Industry, { error: 'Choose your trade.' }),
 });
 
 export async function signupAction(_: FormState, formData: FormData): Promise<FormState> {
   const parsed = SignupSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
-  const { businessName, name, email } = parsed.data;
+  const { businessName, name, email, industry } = parsed.data;
 
   if (await prisma.user.findUnique({ where: { email } })) {
     return { fieldErrors: { email: ['An account with this email already exists. Log in instead.'] } };
@@ -86,7 +88,9 @@ export async function signupAction(_: FormState, formData: FormData): Promise<Fo
     data: {
       businessName,
       slug: slugify(businessName),
+      industry,
       trialEndsAt: new Date(Date.now() + 30 * 86_400_000),
+      catalogItems: { createMany: { data: starterItemRows(industry) } },
       memberships: {
         create: { role: 'OWNER', user: { create: { name, email, passwordHash } } },
       },

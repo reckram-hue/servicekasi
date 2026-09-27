@@ -33,6 +33,15 @@ enum SubscriptionStatus {
   CANCELLED
 }
 
+enum Industry {
+  PLUMBING
+  ELECTRICAL
+  LANDSCAPING
+  POOL
+  GENERAL_MAINTENANCE
+  OTHER
+}
+
 model Tenant {
   id           String  @id @default(uuid())
   slug         String  @unique // public booking URL: servicekasi.co.za/book/<slug>
@@ -69,6 +78,9 @@ model Tenant {
 
   logoUrl      String?
   primaryColor String?
+
+  // Chosen at signup; decides which starter price list is offered.
+  industry Industry?
 
   // Printed on every quote
   quoteTerms            String?
