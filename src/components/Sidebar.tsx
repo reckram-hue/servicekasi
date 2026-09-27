@@ -22,6 +22,7 @@ import {
   LogOut,
   Rocket,
   Wrench,
+  X,
 } from 'lucide-react';
 import type { Role } from '@prisma/client';
 
@@ -34,6 +35,9 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   showGettingStarted: boolean;
   showMyDay: boolean;
+  /** Phone-width off-canvas drawer state — independent of the desktop collapse/expand above. */
+  isMobileOpen: boolean;
+  onCloseMobile: () => void;
 }
 
 interface NavItem {
@@ -79,6 +83,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
   showGettingStarted,
   showMyDay,
+  isMobileOpen,
+  onCloseMobile,
 }) => {
   const pathname = usePathname();
   const navItems = NAV_ITEMS.filter(
@@ -93,15 +99,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
     .slice(0, 2)
     .join('')
     .toUpperCase();
+  // The desktop collapse-to-icons state shouldn't leak into the phone-width drawer, which is
+  // always full width when it's open — so it always shows full labels, never just icons.
+  const showLabels = !isCollapsed || isMobileOpen;
 
   return (
     <aside
-      className={`fixed inset-y-0 left-0 z-50 flex select-none flex-col border-r border-slate-800 bg-slate-900 text-slate-300 transition-all duration-300 ease-in-out ${
-        isCollapsed ? 'w-[72px]' : 'w-64'
-      }`}
+      className={`fixed inset-y-0 left-0 z-50 flex w-64 select-none flex-col border-r border-slate-800 bg-slate-900 text-slate-300 transition-transform duration-300 ease-in-out md:transition-[width] md:translate-x-0 ${
+        isMobileOpen ? 'translate-x-0' : '-translate-x-full'
+      } ${isCollapsed ? 'md:w-[72px]' : 'md:w-64'}`}
     >
       <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-4">
-        {!isCollapsed ? (
+        {showLabels ? (
           <Link href="/" className="group cursor-pointer text-left focus:outline-none">
             <div className="text-lg leading-tight font-extrabold tracking-tight text-white">
               Service<span className="text-amber-400">Kasi</span>
@@ -121,9 +130,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
           type="button"
           onClick={onToggleCollapse}
           title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className={`rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white ${isCollapsed ? 'hidden' : 'block'}`}
+          className={`hidden rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white ${isCollapsed ? 'md:hidden' : 'md:block'}`}
         >
           <PanelLeftClose className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onCloseMobile}
+          title="Close menu"
+          className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-white md:hidden"
+        >
+          <X className="h-5 w-5" />
         </button>
       </div>
 
@@ -132,7 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           const groupItems = navItems.filter((item) => item.group === group);
           return (
             <div key={group} className="space-y-1">
-              {!isCollapsed && <div className="mb-1.5 px-3 text-[10px] font-bold tracking-widest text-slate-500 uppercase">{group}</div>}
+              {showLabels && <div className="mb-1.5 px-3 text-[10px] font-bold tracking-widest text-slate-500 uppercase">{group}</div>}
               {groupItems.map((item) => {
                 const isActive = active === item.href;
                 const Icon = item.icon;
@@ -140,13 +157,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Link
                     key={item.href}
                     href={item.href}
-                    title={isCollapsed ? item.label : undefined}
+                    onClick={onCloseMobile}
+                    title={showLabels ? undefined : item.label}
                     className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-xs font-semibold transition-all ${
                       isActive ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:bg-slate-800/70 hover:text-white'
-                    } ${isCollapsed ? 'justify-center px-0' : ''}`}
+                    } ${showLabels ? '' : 'md:justify-center md:px-0'}`}
                   >
                     <Icon className={`h-4 w-4 shrink-0 transition-colors ${isActive ? 'text-slate-950' : 'text-slate-400 group-hover:text-slate-200'}`} />
-                    {!isCollapsed && <span className="truncate text-left">{item.label}</span>}
+                    {showLabels && <span className="truncate text-left">{item.label}</span>}
                   </Link>
                 );
               })}
@@ -156,7 +174,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       <div className="shrink-0 border-t border-slate-800 bg-slate-950/60 p-3">
-        {!isCollapsed ? (
+        {showLabels ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between text-xs">
               <div className="flex items-center gap-2 overflow-hidden">
@@ -172,7 +190,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 type="button"
                 onClick={onToggleCollapse}
                 title="Collapse sidebar"
-                className="rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-white"
+                className="hidden rounded-md p-1 text-slate-400 hover:bg-slate-800 hover:text-white md:block"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
