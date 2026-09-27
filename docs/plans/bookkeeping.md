@@ -1,6 +1,6 @@
 # Bookkeeping (cashbook) — plan
 
-Status: draft for review, 2026-09-27. Nothing built yet.
+Status: Phase 1a built and tested 2026-09-27 — money accounts, expenses (with slip photos), transfers (incl. loan interest splits), categories, the 30/month Free Solo cap. Creditors/supplier bills and automatic invoice-payment posting (decision 6) are **not built yet** — see "Phase 1b" below.
 
 ## The goal
 
@@ -21,28 +21,42 @@ This is **not** an accounting package. No payroll, no tax returns, no balance sh
 5. **Nothing is ever deleted.** Mistakes are reversed with a correcting entry, same as payments today (decision 11 in the invoices plan).
 6. **Money in from invoices is automatic.** Existing invoice payments post into the cashbook themselves; users don't enter turnover twice.
 
-## Phase 1 — Cashbook (build first)
+## Phase 1a — Cashbook (built)
 
-**Money accounts**
+**Money accounts** — `/bookkeeping/accounts/new`, `/bookkeeping/accounts/[id]`
 - Types: Bank, Petty cash, Loan (money owed to a bank/family/vehicle finance), Credit card.
-- Each has a name, opening balance and opening date.
+- Each has a name, opening balance and opening date. Each account page shows a running balance and its full history.
 
-**Expenses ("money out")**
+**Expenses ("money out")** — `/bookkeeping/expenses/new`
 - Date, amount, supplier, category, paid from (which money account), VAT yes/no, note.
-- **Slip photo** from the phone camera (reuses our existing R2 photo storage). This is the "no more box of paper" feature.
-- Fast entry on mobile: amount + photo + category, everything else optional.
+- **Slip photo** from the phone camera (reuses the existing R2 photo storage, resized client-side first). This is the "no more box of paper" feature.
+- Fast entry on mobile: amount + photo + category, everything else optional. The form clears itself after each save so several can be logged in a row.
+- The 30/month Free Solo cap blocks the 31st expense with an upgrade prompt; Team and Growth are unlimited.
 
-**Transfers**
-- Bank → petty cash (drawing cash), bank → loan (repayment, with an optional interest split).
+**Transfers** — `/bookkeeping/transfer`
+- Bank → petty cash (drawing cash), bank → loan (repayment, with an optional interest split — the interest posts as its own linked entry so only the true principal reduces what's owed).
+
+**Categories** — `/bookkeeping/categories`
+- A short South African trade-business list seeded the first time a business opens the cashbook. Renaming works; nothing already used can be removed, matching decision 5.
+
+**Dashboard card** — money out this month, on the `/bookkeeping` overview, alongside every account's balance and the recent expense list.
+
+Engine: every screen above posts through a hidden double-entry ledger (`src/lib/bookkeeping/ledger.ts`) — one `LedgerAccount` row per money account, category, and the one "opening balance equity" system account, so a future Xero/Sage/QuickBooks export (Phase 3) has real accounting codes to map onto without reshaping any data.
+
+## Phase 1b — Creditors and automatic invoice income (not built)
+
+Deliberately left out of the first cut to ship a complete, working slice rather than a half-finished one touching several systems at once:
 
 **Creditors (supplier bills)**
 - Record a bill from a supplier (e.g. Builders Warehouse account), due date, amount, slip/invoice photo.
 - Pay it in full or in part from a money account.
 - "Who I owe" list, oldest first, with overdue highlighted.
 
-**Simple screens**
-- Each money account: running balance and list of entries.
-- Dashboard card: money in vs money out this month.
+**Decision 6 — money in from invoices, automatically**
+- Needs a `moneyAccountId` on `Payment` (which account a payment landed in) and a "Sales income" system ledger account, so a paid invoice posts a real "money in" entry the same way an expense posts "money out" today.
+- Manual payments (cash/EFT recorded by hand): ask which account it landed in at the point of recording.
+- Gateway payments (PayFast webhook): needs a rule for which account to post to when there's more than one bank account — punted until real usage shows what's needed.
+- Until this lands, the dashboard's "money out this month" figure is accurate but there is no "money in" figure yet — the cashbook only tracks spending, not income, which is still the main "replace the shoebox" use case.
 
 ## Phase 2 — Reconciliation and reports
 

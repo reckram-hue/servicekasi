@@ -121,6 +121,11 @@ model Tenant {
   sequences     DocumentSequence[]
   auditLogs     AuditLog[]
   paymentAccounts PaymentAccount[]
+  ledgerAccounts   LedgerAccount[]
+  moneyAccounts    MoneyAccount[]
+  expenseCategories ExpenseCategory[]
+  expenses         Expense[]
+  journalEntries   JournalEntry[]
 }
 
 // ───────────────────────── People & access ─────────────────────────
@@ -803,4 +808,157 @@ model PaymentAccount {
   updatedAt  DateTime      @updatedAt
 
   @@unique([tenantId, provider])
+}
+
+// ───────────────────────── Bookkeeping (cashbook) ─────────────────────────
+// docs/plans/bookkeeping.md — Phase 1. Every money movement is a balanced
+// journal entry behind the scenes (decision 1); the owner only ever sees
+// "money in / money out / category". Nothing is ever deleted (decision 5) —
+// mistakes get a correcting entry via `reversedAt` / `reversesEntryId`.
+
+enum LedgerAccountKind {
+  ASSET
+  LIABILITY
+  EQUITY
+  EXPENSE
+}
+
+enum MoneyAccountType {
+  BANK
+  PETTY_CASH
+  LOAN // money owed to a bank/family/vehicle finance — a liability, not an asset
+  CREDIT_CARD // also a liability
+}
+
+enum ExpenseVatStatus {
+  NO_VAT
+  INCLUDES_VAT
+}
+
+enum JournalSourceType {
+  OPENING_BALANCE
+  EXPENSE
+  TRANSFER
+  CORRECTION
+}
+
+/// One row per money account, expense category, and fixed system account
+/// (e.g. "Opening balance equity"). Every JournalEntry debits one of these and
+/// credits another. This indirection is what lets a future Xero/Sage/QuickBooks
+/// export map straight onto a real chart of accounts without reshaping the
+/// ledger later (see Phase 3 in the plan).
+model LedgerAccount {
+  id        String            @id @default(uuid())
+  tenantId  String
+  tenant    Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  kind      LedgerAccountKind
+  code      String            // short code for the accountant export, e.g. "OBE", "FUEL"
+  name      String
+  // Hidden from pickers once no longer wanted; never deleted so history stays readable (decision 5).
+  archived  Boolean           @default(false)
+  createdAt DateTime          @default(now())
+
+  moneyAccount    MoneyAccount?
+  expenseCategory ExpenseCategory?
+  debitEntries    JournalEntry[] @relation("DebitAccount")
+  creditEntries   JournalEntry[] @relation("CreditAccount")
+
+  @@unique([tenantId, code])
+  @@index([tenantId, kind])
+}
+
+model MoneyAccount {
+  id                  String           @id @default(uuid())
+  tenantId            String
+  tenant              Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ledgerAccountId     String           @unique
+  ledgerAccount       LedgerAccount    @relation(fields: [ledgerAccountId], references: [id], onDelete: Cascade)
+  type                MoneyAccountType
+  name                String
+  openingBalanceCents Int              @default(0)
+  openingDate         DateTime
+  archived            Boolean          @default(false)
+  createdAt           DateTime         @default(now())
+
+  expenses Expense[]
+
+  @@index([tenantId])
+}
+
+/// A short, fixed South African trade-business list, seeded per tenant on
+/// first use of the cashbook. Users can rename and add; not delete ones that
+/// have been used (decision 2 — each maps 1-to-1 onto a Xero/Sage/QuickBooks
+/// account later).
+model ExpenseCategory {
+  id              String        @id @default(uuid())
+  tenantId        String
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ledgerAccountId String        @unique
+  ledgerAccount   LedgerAccount @relation(fields: [ledgerAccountId], references: [id], onDelete: Cascade)
+  name            String
+  archived        Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+
+  expenses Expense[]
+
+  @@index([tenantId])
+}
+
+model Expense {
+  id             String           @id @default(uuid())
+  tenantId       String
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  date           DateTime
+  amountCents    Int
+  supplier       String?
+  categoryId     String
+  category       ExpenseCategory  @relation(fields: [categoryId], references: [id])
+  moneyAccountId String
+  moneyAccount   MoneyAccount     @relation(fields: [moneyAccountId], references: [id])
+  vatStatus      ExpenseVatStatus @default(NO_VAT)
+  note           String?
+  // The "no more box of paper slips" feature — a phone photo of the receipt, via R2 (src/lib/storage.ts).
+  slipUrl        String?
+  slipMimeType   String?
+
+  createdByMembershipId String?
+  // Offline / flaky-connection retry safety, same pattern as Attachment.clientGeneratedId.
+  clientGeneratedId     String?      @unique
+  journalEntryId        String       @unique
+  journalEntry          JournalEntry @relation(fields: [journalEntryId], references: [id])
+
+  createdAt  DateTime  @default(now())
+  // Set when a wrongly recorded expense is corrected. The row and its journal
+  // entry are kept, never deleted, so there's always a trail (decision 5).
+  reversedAt DateTime?
+
+  @@index([tenantId, date])
+  @@index([tenantId, categoryId])
+}
+
+/// A single balanced money movement: exactly one debit account, one credit
+/// account, one amount. Phase 1 never needs to split one entry across several
+/// accounts, so this stays simple rather than a generic N-line ledger.
+model JournalEntry {
+  id              String            @id @default(uuid())
+  tenantId        String
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  date            DateTime
+  memo            String
+  debitAccountId  String
+  debitAccount    LedgerAccount     @relation("DebitAccount", fields: [debitAccountId], references: [id])
+  creditAccountId String
+  creditAccount   LedgerAccount     @relation("CreditAccount", fields: [creditAccountId], references: [id])
+  amountCents     Int
+  sourceType      JournalSourceType
+  // Loan repayments can split into a principal transfer + an interest expense —
+  // two entries sharing one transferGroupId so they display together.
+  transferGroupId String?
+  createdAt       DateTime          @default(now())
+
+  expense Expense?
+
+  @@index([tenantId, date])
+  @@index([tenantId, sourceType])
+  @@index([transferGroupId])
 }

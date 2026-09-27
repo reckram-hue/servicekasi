@@ -22,6 +22,9 @@ export const PLAN_LABEL: Record<PlanTier, string> = { FREE_SOLO: 'Free Solo', TE
 /** How many people (owner included) can be logged into the business at once on each package. null = no limit. */
 export const PERSON_LIMIT: Record<PlanTier, number | null> = { FREE_SOLO: 1, TEAM: 5, GROWTH: null };
 
+/** How many cashbook expenses a business can add per calendar month. null = no limit (docs/plans/bookkeeping.md). */
+export const EXPENSE_MONTHLY_LIMIT: Record<PlanTier, number | null> = { FREE_SOLO: 30, TEAM: null, GROWTH: null };
+
 type TenantPlanFields = Pick<Tenant, 'plan' | 'subscriptionStatus' | 'trialEndsAt'>;
 
 /**
@@ -62,4 +65,9 @@ export function minimumPlanFor(feature: Feature): PlanTier {
 /** How many people (memberships) the business's current package allows logged in at once. null = unlimited. */
 export function personLimit(tenant: TenantPlanFields): number | null {
   return PERSON_LIMIT[currentPackage(tenant)];
+}
+
+/** How many cashbook expenses the business's current package allows per calendar month. null = unlimited. */
+export function expenseMonthlyLimit(tenant: TenantPlanFields): number | null {
+  return EXPENSE_MONTHLY_LIMIT[currentPackage(tenant)];
 }
