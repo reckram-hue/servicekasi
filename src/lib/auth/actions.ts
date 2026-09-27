@@ -217,6 +217,33 @@ export async function confirmTotpSetupAction(_: FormState, formData: FormData): 
   redirect('/');
 }
 
+export async function disableTotpAction(_: FormState, formData: FormData): Promise<FormState> {
+  const { user, tenant } = await requireAuth();
+  if (!user.totpEnabled || !user.totpSecret) redirect('/settings/security');
+  if (isLocked(user)) return { error: `Too many attempts. Try again in ${LOCK_MINUTES} minutes.` };
+
+  const paymentsOn = await prisma.paymentAccount.count({ where: { tenantId: tenant.id, enabled: true } });
+  if (paymentsOn > 0) {
+    return { error: 'Online payments are switched on. Switch them off under Settings → Payments first, then try again.' };
+  }
+
+  const step = verifyTotp(user.totpSecret, String(formData.get('code') ?? ''), user.totpLastUsedStep);
+  if (step == null) {
+    await recordFailure(user);
+    return { error: 'That code is not correct. Type the newest 6-digit code from your authenticator app.' };
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { totpEnabled: false, totpSecret: null, totpLastUsedStep: null, totpSkippedAt: new Date(), failedLoginCount: 0, lockedUntil: null },
+  });
+  await prisma.auditLog.create({
+    data: { tenantId: tenant.id, userId: user.id, action: 'security.authenticator_disabled', entityType: 'User', entityId: user.id },
+  });
+  revalidatePath('/', 'layout');
+  redirect('/settings/security');
+}
+
 /** Owner chose "Skip for now". Recorded with a date so there's a trail that they declined. */
 export async function skipTotpSetupAction() {
   const { user, tenant } = await requireAuth();

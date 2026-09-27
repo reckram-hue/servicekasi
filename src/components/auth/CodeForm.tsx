@@ -8,9 +8,11 @@ import { Field, FormMessage, SubmitButton } from './ui';
 export function CodeForm({
   action,
   button,
+  autoFocus = true,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
   button: string;
+  autoFocus?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   return (
@@ -25,7 +27,7 @@ export function CodeForm({
         maxLength={7}
         placeholder="123 456"
         required
-        autoFocus
+        autoFocus={autoFocus}
       />
       <SubmitButton pending={pending}>{button}</SubmitButton>
     </form>

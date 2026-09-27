@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import { AuthCard } from '@/components/auth/ui';
 import { CodeForm } from '@/components/auth/CodeForm';
 import { requireAuth } from '@/lib/auth/session';
-import { confirmTotpSetupAction, ensureTotpSetupSecret, skipTotpSetupAction } from '@/lib/auth/actions';
+import { confirmTotpSetupAction, disableTotpAction, ensureTotpSetupSecret, skipTotpSetupAction } from '@/lib/auth/actions';
 import { totpUri } from '@/lib/auth/totp';
 
 export default async function SecurityPage() {
@@ -15,6 +15,14 @@ export default async function SecurityPage() {
         <p className="text-sm text-slate-300">
           Each time you log in you&apos;ll be asked for the 6-digit code from your authenticator app.
         </p>
+        <details className="mt-6 border-t border-slate-800 pt-4">
+          <summary className="cursor-pointer text-sm text-slate-400 hover:text-slate-200">Switch off authenticator</summary>
+          <p className="my-3 text-xs text-slate-500">
+            Without it, anyone who gets hold of your password can get into your account. To confirm it&apos;s you, type the current code
+            from your authenticator app.
+          </p>
+          <CodeForm action={disableTotpAction} button="Switch off" autoFocus={false} />
+        </details>
         <Link href="/" className="mt-6 block text-center text-amber-400 hover:underline">
           Back to dashboard
         </Link>
