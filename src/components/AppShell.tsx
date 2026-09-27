@@ -1,32 +1,20 @@
-"use client";
-
-import dynamic from "next/dynamic";
 import Link from "next/link";
-import {
-  INITIAL_USERS,
-  INITIAL_CLIENTS,
-  INITIAL_JOBS,
-  INITIAL_INVOICES,
-} from "@/data/mockData";
 import { formatMoney } from "@/lib/money";
-
-// Dynamically import AdminDashboard with SSR disabled to satisfy Leaflet
-const AdminDashboard = dynamic(
-  () => import("@/components/AdminDashboard").then((mod) => mod.AdminDashboard),
-  { ssr: false }
-);
+import { AdminDashboard } from "@/components/AdminDashboard";
+import type { DashboardJob } from "@/lib/jobs/dashboard";
 
 type AppShellProps = {
   moneyOwed?: { outstandingCents: number; overdueCents: number; overdueCount: number; currencyCode: string };
+  jobs: DashboardJob[];
+  technicianCount: number;
+  currencyCode: string;
+  finance: { collectedCents: number; collectedVatCents: number; outstandingCents: number };
+  activeDispatches: number;
+  unassignedCount: number;
 };
 
 /** The dashboard's own content — the sidebar and page chrome around it live in the shared (app) layout. */
-export function AppShell({ moneyOwed }: AppShellProps) {
-  const jobs = INITIAL_JOBS;
-  const clients = INITIAL_CLIENTS;
-  const technicians = INITIAL_USERS.filter((u) => u.role === "TECHNICIAN");
-  const invoices = INITIAL_INVOICES;
-
+export function AppShell({ moneyOwed, jobs, technicianCount, currencyCode, finance, activeDispatches, unassignedCount }: AppShellProps) {
   return (
     <div className="p-6">
       {moneyOwed && (
@@ -52,15 +40,11 @@ export function AppShell({ moneyOwed }: AppShellProps) {
       )}
       <AdminDashboard
         jobs={jobs}
-        clients={clients}
-        technicians={technicians}
-        invoices={invoices}
-        onUpdateJobStatus={() => {}}
-        onAssignTechnician={() => {}}
-        onSelectJobForTechView={() => {}}
-        onSelectInvoice={() => {}}
-        onCreateInvoiceForJob={() => {}}
-        onOpenNewJobModal={() => {}}
+        technicianCount={technicianCount}
+        currencyCode={currencyCode}
+        finance={finance}
+        activeDispatches={activeDispatches}
+        unassignedCount={unassignedCount}
       />
     </div>
   );

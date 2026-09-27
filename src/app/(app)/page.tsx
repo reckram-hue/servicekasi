@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth/session';
 import { logoutAction } from '@/lib/auth/actions';
 import { tenantDb } from '@/lib/db';
 import { moneyOwedSummary } from '@/lib/invoices/overdue';
+import { dashboardJobs, collectedRevenue } from '@/lib/jobs/dashboard';
 import { AppShell } from '@/components/AppShell';
 import { TechnicianDay } from '@/components/technician/TechnicianDay';
 
@@ -28,7 +29,27 @@ export default async function Home() {
     );
   }
 
-  const moneyOwed = await moneyOwedSummary(tenantDb(tenant.id));
+  const db = tenantDb(tenant.id);
+  const [moneyOwed, revenue, jobs, technicianCount] = await Promise.all([
+    moneyOwedSummary(db),
+    collectedRevenue(db),
+    dashboardJobs(db),
+    db.membership.count({ where: { role: 'TECHNICIAN', active: true } }),
+  ]);
+  const activeDispatches = jobs.filter((j) => j.status === 'SCHEDULED' || j.status === 'IN_PROGRESS').length;
+  const unassignedCount = jobs.filter(
+    (j) => (j.status === 'DRAFT' || j.status === 'SCHEDULED') && (j.nextVisit === null || j.nextVisit.technicianNames.length === 0)
+  ).length;
 
-  return <AppShell moneyOwed={{ ...moneyOwed, currencyCode: tenant.currencyCode }} />;
+  return (
+    <AppShell
+      moneyOwed={{ ...moneyOwed, currencyCode: tenant.currencyCode }}
+      jobs={jobs}
+      technicianCount={technicianCount}
+      currencyCode={tenant.currencyCode}
+      finance={{ ...revenue, outstandingCents: moneyOwed.outstandingCents }}
+      activeDispatches={activeDispatches}
+      unassignedCount={unassignedCount}
+    />
+  );
 }

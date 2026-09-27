@@ -1,448 +1,249 @@
-import React, { useState } from 'react';
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
 import {
   Calendar,
-  Clock,
   MapPin,
-  Phone,
-  MessageSquare,
   AlertCircle,
-  CheckCircle2,
   TrendingUp,
-  UserCheck,
   FileText,
+  Clock,
   Search,
-  ExternalLink,
   ChevronRight,
   Filter,
-  Map as MapIcon,
-  Route as RouteIcon,
-  Trophy,
 } from 'lucide-react';
-import { Client, Invoice, Job, JobStatus, User } from '../types';
-import {
-  formatZAR,
-  createWhatsAppDispatchLink,
-  createGoogleMapsLink,
-} from '../lib/southAfrica';
-import { AdminRouteMap } from './AdminRouteMap';
-import { TopTechnicianLeaderboard } from './TopTechnicianLeaderboard';
+import { formatMoney } from '@/lib/money';
+import type { DashboardJob } from '@/lib/jobs/dashboard';
 
 interface AdminDashboardProps {
-  jobs: Job[];
-  clients: Client[];
-  technicians: User[];
-  invoices: Invoice[];
-  onUpdateJobStatus: (jobId: string, status: JobStatus) => void;
-  onAssignTechnician: (jobId: string, techId: string) => void;
-  onSelectJobForTechView: (jobId: string) => void;
-  onSelectInvoice: (invoiceId: string) => void;
-  onCreateInvoiceForJob: (job: Job) => void;
-  onOpenNewJobModal: () => void;
+  jobs: DashboardJob[];
+  technicianCount: number;
+  currencyCode: string;
+  finance: { collectedCents: number; collectedVatCents: number; outstandingCents: number };
+  activeDispatches: number;
+  unassignedCount: number;
+}
+
+const STATUS_COLUMNS: { key: DashboardJob['status']; label: string; dotColor: string }[] = [
+  { key: 'DRAFT', label: 'Unscheduled / Draft', dotColor: 'bg-amber-400' },
+  { key: 'SCHEDULED', label: 'Scheduled', dotColor: 'bg-blue-500' },
+  { key: 'IN_PROGRESS', label: 'In Progress', dotColor: 'bg-purple-500' },
+  { key: 'REQUIRES_INVOICING', label: 'Requires Invoicing', dotColor: 'bg-emerald-500' },
+  { key: 'COMPLETED', label: 'Completed', dotColor: 'bg-slate-700' },
+];
+
+const PRIORITY_STYLE: Record<DashboardJob['priority'], string> = {
+  EMERGENCY: 'text-red-600',
+  HIGH: 'text-amber-600',
+  NORMAL: 'text-slate-500',
+  LOW: 'text-slate-400',
+};
+
+function visitLabel(job: DashboardJob): string {
+  if (!job.nextVisit) return 'Not yet scheduled';
+  const date = job.nextVisit.startsAt.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' });
+  const time = job.nextVisit.startsAt.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
+  return `${date} · ${time}`;
+}
+
+function technicianLabel(job: DashboardJob): string {
+  if (!job.nextVisit || job.nextVisit.technicianNames.length === 0) return 'Unassigned';
+  return job.nextVisit.technicianNames.join(', ');
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   jobs,
-  clients,
-  technicians,
-  invoices,
-  onUpdateJobStatus,
-  onAssignTechnician,
-  onSelectJobForTechView,
-  onSelectInvoice,
-  onCreateInvoiceForJob,
-  onOpenNewJobModal,
+  technicianCount,
+  currencyCode,
+  finance,
+  activeDispatches,
+  unassignedCount,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [viewMode, setViewMode] = useState<'BOARD' | 'MAP' | 'LIST'>('BOARD');
-  const [showLeaderboard, setShowLeaderboard] = useState(true);
-
-  // Compute key South African financial metrics
-  const totalRevenueInclVat = invoices
-    .filter((inv) => inv.status === 'PAID')
-    .reduce((sum, inv) => sum + inv.totalInclVat, 0);
-
-  const pendingRevenueInclVat = invoices
-    .filter((inv) => inv.status === 'SENT' || inv.status === 'DRAFT')
-    .reduce((sum, inv) => sum + inv.totalInclVat, 0);
-
-  const totalVatCollected = invoices
-    .filter((inv) => inv.status === 'PAID')
-    .reduce((sum, inv) => sum + inv.vatTotal, 0);
-
-  const activeJobsCount = jobs.filter(
-    (j) => j.status === 'IN_PROGRESS' || j.status === 'SCHEDULED'
-  ).length;
-  const unassignedJobs = jobs.filter((j) => !j.assignedTechId && j.status !== 'CANCELLED');
-  const completedJobsCount = jobs.filter(
-    (j) => j.status === 'COMPLETED' || j.status === 'INVOICED'
-  ).length;
+  const [statusFilter, setStatusFilter] = useState<'ALL' | DashboardJob['status']>('ALL');
+  const [viewMode, setViewMode] = useState<'BOARD' | 'LIST'>('BOARD');
 
   const filteredJobs = jobs.filter((job) => {
-    const client = clients.find((c) => c.id === job.clientId);
-    const tech = technicians.find((t) => t.id === job.assignedTechId);
+    const term = searchTerm.toLowerCase();
     const matchesSearch =
-      job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      job.jobNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (client?.name.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (client?.address.suburb.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (tech?.name.toLowerCase() || '').includes(searchTerm.toLowerCase());
-
+      !term ||
+      job.title.toLowerCase().includes(term) ||
+      job.number.toLowerCase().includes(term) ||
+      job.clientName.toLowerCase().includes(term) ||
+      (job.locationLabel?.toLowerCase() ?? '').includes(term) ||
+      technicianLabel(job).toLowerCase().includes(term);
     const matchesStatus = statusFilter === 'ALL' || job.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const getClient = (clientId: string) => clients.find((c) => c.id === clientId);
-  const getTech = (techId?: string) => technicians.find((t) => t.id === techId);
-
-  const statusColumns: { key: JobStatus; label: string; dotColor: string }[] = [
-    { key: 'PENDING', label: 'Unscheduled / Queue', dotColor: 'bg-amber-400' },
-    { key: 'SCHEDULED', label: 'Dispatched & Scheduled', dotColor: 'bg-blue-500' },
-    { key: 'IN_PROGRESS', label: 'Tech On Site / In Progress', dotColor: 'bg-purple-500' },
-    { key: 'COMPLETED', label: 'Work Complete (Ready to Bill)', dotColor: 'bg-emerald-500' },
-    { key: 'INVOICED', label: 'Invoiced & Settled', dotColor: 'bg-slate-700' },
-  ];
-
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* Editorial Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Field Operations & Dispatch Hub
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Real-time technician tracking, South African Rand revenue & SARS VAT operations
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Field Operations & Dispatch Hub</h1>
+          <p className="mt-1 text-sm text-slate-500">Real-time job tracking and revenue at a glance</p>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
+          <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
             <button
               onClick={() => setViewMode('BOARD')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                viewMode === 'BOARD'
-                  ? 'bg-white text-slate-900 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                viewMode === 'BOARD' ? 'bg-white font-bold text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Dispatch Board
             </button>
             <button
-              onClick={() => setViewMode('MAP')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5 ${
-                viewMode === 'MAP'
-                  ? 'bg-white text-slate-900 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <RouteIcon className="w-3.5 h-3.5 text-amber-600" />
-              <span>Route Map</span>
-            </button>
-            <button
               onClick={() => setViewMode('LIST')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                viewMode === 'LIST'
-                  ? 'bg-white text-slate-900 shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                viewMode === 'LIST' ? 'bg-white font-bold text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Table View
             </button>
           </div>
 
-          <button
-            onClick={() => setShowLeaderboard(!showLeaderboard)}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors flex items-center gap-1.5 ${
-              showLeaderboard
-                ? 'bg-amber-50 text-amber-900 border-amber-300'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            <Trophy className="w-3.5 h-3.5 text-amber-600" />
-            <span>{showLeaderboard ? 'Hide Leaderboard' : 'Show Top Technicians'}</span>
-          </button>
-
-          <button
-            onClick={onOpenNewJobModal}
-            className="px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-medium hover:bg-slate-800 transition-colors shadow-xs"
-          >
-            + Dispatch Job
-          </button>
+          <Link href="/jobs" className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-medium text-white shadow-xs transition-colors hover:bg-slate-800">
+            + New job
+          </Link>
         </div>
       </div>
 
-      {/* Financial & Operational KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 bg-white rounded-xl border border-slate-200">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>Collected Revenue (ZAR)</span>
-            <TrendingUp className="w-4 h-4 text-emerald-600" />
+            <span>Collected Revenue</span>
+            <TrendingUp className="h-4 w-4 text-emerald-600" />
           </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 font-mono tabular-nums">
-            {formatZAR(totalRevenueInclVat)}
-          </p>
-          <div className="mt-2 text-xs text-slate-500 flex items-center gap-2">
-            <span>Incl. 15% VAT</span>
+          <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-slate-900">{formatMoney(finance.collectedCents, currencyCode)}</p>
+          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+            <span>Incl. VAT</span>
             <span aria-hidden="true">·</span>
-            <span className="font-mono tabular-nums text-slate-700 font-medium">
-              VAT: {formatZAR(totalVatCollected)}
-            </span>
+            <span className="font-mono font-medium tabular-nums text-slate-700">VAT: {formatMoney(finance.collectedVatCents, currencyCode)}</span>
           </div>
         </div>
 
-        <div className="p-5 bg-white rounded-xl border border-slate-200">
+        <Link href="/invoices?status=SENT" className="rounded-xl border border-slate-200 bg-white p-5 hover:border-slate-300">
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>Pending Invoices (ZAR)</span>
-            <FileText className="w-4 h-4 text-amber-600" />
+            <span>Outstanding Invoices</span>
+            <FileText className="h-4 w-4 text-amber-600" />
           </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 font-mono tabular-nums">
-            {formatZAR(pendingRevenueInclVat)}
-          </p>
-          <div className="mt-2 text-xs text-slate-500 flex items-center gap-2">
-            <span>Sent & Draft Invoices</span>
-            <span aria-hidden="true">·</span>
-            <span>Awaiting PayFast / EFT</span>
+          <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-slate-900">{formatMoney(finance.outstandingCents, currencyCode)}</p>
+          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+            <span>Unpaid invoices · Awaiting payment</span>
           </div>
-        </div>
+        </Link>
 
-        <div className="p-5 bg-white rounded-xl border border-slate-200">
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>Active Dispatches</span>
-            <Clock className="w-4 h-4 text-blue-600" />
+            <Clock className="h-4 w-4 text-blue-600" />
           </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 font-mono tabular-nums">
-            {activeJobsCount}
-          </p>
-          <div className="mt-2 text-xs text-slate-500 flex items-center gap-2">
-            <span>Scheduled & On Site</span>
+          <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-slate-900">{activeDispatches}</p>
+          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+            <span>Scheduled & on site</span>
             <span aria-hidden="true">·</span>
-            <span>{technicians.length} field techs</span>
+            <span>{technicianCount} field techs</span>
           </div>
         </div>
 
-        <div className="p-5 bg-white rounded-xl border border-slate-200">
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
           <div className="flex items-center justify-between text-xs text-slate-500">
             <span>Unassigned Queue</span>
-            <AlertCircle className="w-4 h-4 text-amber-600" />
+            <AlertCircle className="h-4 w-4 text-amber-600" />
           </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 font-mono tabular-nums">
-            {unassignedJobs.length}
-          </p>
-          <div className="mt-2 text-xs text-slate-500 flex items-center gap-2">
+          <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-slate-900">{unassignedCount}</p>
+          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
             <span>Awaiting technician allocation</span>
           </div>
         </div>
       </div>
 
-      {/* Gamified Top Technician Leaderboard Widget */}
-      {showLeaderboard && (
-        <TopTechnicianLeaderboard
-          jobs={jobs}
-          technicians={technicians}
-          onSelectTechnician={onSelectJobForTechView}
-        />
-      )}
-
-      {/* Filter and Search Controls */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-xl border border-slate-200">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+      <div className="flex flex-col items-stretch justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 sm:flex-row sm:items-center">
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute top-2.5 left-3 h-4 w-4 text-slate-400" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by job #, suburb, client, technician..."
-            className="w-full pl-9 pr-4 py-1.5 text-xs sm:text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+            className="w-full rounded-lg border border-slate-200 py-1.5 pr-4 pl-9 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none sm:text-sm"
           />
         </div>
 
         <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-          <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <Filter className="h-3.5 w-3.5 shrink-0 text-slate-400" />
           <div className="flex items-center gap-1">
-            {['ALL', 'PENDING', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED'].map((status) => (
+            {(['ALL', ...STATUS_COLUMNS.map((c) => c.key)] as const).map((status) => (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
-                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
-                  statusFilter === status
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-600 hover:bg-slate-100'
+                className={`rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
+                  statusFilter === status ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                {status === 'ALL'
-                  ? 'All Jobs'
-                  : status === 'IN_PROGRESS'
-                  ? 'In Progress'
-                  : status.charAt(0) + status.slice(1).toLowerCase()}
+                {status === 'ALL' ? 'All Jobs' : STATUS_COLUMNS.find((c) => c.key === status)!.label}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* DISPATCH BOARD VIEW */}
       {viewMode === 'BOARD' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {statusColumns.map((col) => {
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+          {STATUS_COLUMNS.map((col) => {
             const columnJobs = filteredJobs.filter((j) => j.status === col.key);
             return (
-              <div
-                key={col.key}
-                className="bg-slate-50/75 rounded-xl border border-slate-200/80 p-3 flex flex-col min-h-[500px]"
-              >
-                <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200">
+              <div key={col.key} className="flex min-h-[400px] flex-col rounded-xl border border-slate-200/80 bg-slate-50/75 p-3">
+                <div className="mb-3 flex items-center justify-between border-b border-slate-200 pb-3">
                   <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${col.dotColor}`} />
-                    <span className="text-xs font-bold text-slate-800 tracking-tight">
-                      {col.label}
-                    </span>
+                    <span className={`h-2 w-2 rounded-full ${col.dotColor}`} />
+                    <span className="text-xs font-bold tracking-tight text-slate-800">{col.label}</span>
                   </div>
-                  <span className="text-xs font-mono font-semibold text-slate-400">
-                    {columnJobs.length}
-                  </span>
+                  <span className="font-mono text-xs font-semibold text-slate-400">{columnJobs.length}</span>
                 </div>
 
-                <div className="space-y-3 flex-1 overflow-y-auto">
-                  {columnJobs.map((job) => {
-                    const client = getClient(job.clientId);
-                    const tech = getTech(job.assignedTechId);
-                    const invoice = invoices.find((inv) => inv.id === job.invoiceId);
+                <div className="flex-1 space-y-3 overflow-y-auto">
+                  {columnJobs.map((job) => (
+                    <Link
+                      key={job.id}
+                      href={`/jobs/${job.id}`}
+                      className="block space-y-2.5 rounded-lg border border-slate-200 bg-white p-3 shadow-2xs transition-all hover:border-slate-300"
+                    >
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-mono font-semibold text-slate-900">{job.number}</span>
+                        <span className={`text-[10px] font-semibold tracking-wider uppercase ${PRIORITY_STYLE[job.priority]}`}>{job.priority}</span>
+                      </div>
 
-                    return (
-                      <div
-                        key={job.id}
-                        className="bg-white rounded-lg border border-slate-200 p-3 shadow-2xs hover:border-slate-300 transition-all space-y-2.5"
-                      >
-                        {/* Job Reference & Priority */}
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-mono font-semibold text-slate-900">
-                            {job.jobNumber}
-                          </span>
-                          <span
-                            className={`text-[10px] font-semibold uppercase tracking-wider ${
-                              job.priority === 'URGENT'
-                                ? 'text-red-600'
-                                : job.priority === 'HIGH'
-                                ? 'text-amber-600'
-                                : 'text-slate-500'
-                            }`}
-                          >
-                            {job.priority}
-                          </span>
-                        </div>
+                      <h4 className="line-clamp-2 text-xs leading-snug font-semibold text-slate-900">{job.title}</h4>
 
-                        {/* Title */}
-                        <h4 className="text-xs font-semibold text-slate-900 leading-snug line-clamp-2">
-                          {job.title}
-                        </h4>
-
-                        {/* South African Location & Client */}
-                        {client && (
-                          <div className="text-xs text-slate-500 space-y-1">
-                            <p className="font-medium text-slate-700 truncate">{client.name}</p>
-                            <div className="flex items-center gap-1 truncate text-[11px]">
-                              <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span className="truncate">
-                                {client.address.suburb}, {client.address.city}
-                              </span>
-                            </div>
+                      <div className="space-y-1 text-xs text-slate-500">
+                        <p className="truncate font-medium text-slate-700">{job.clientName}</p>
+                        {job.locationLabel && (
+                          <div className="flex items-center gap-1 truncate text-[11px]">
+                            <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
+                            <span className="truncate">{job.locationLabel}</span>
                           </div>
                         )}
-
-                        {/* Schedule Date & Time */}
-                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5 pt-1 border-t border-slate-100">
-                          <Calendar className="w-3 h-3 text-slate-400" />
-                          <span>{job.scheduledDate}</span>
-                          <span aria-hidden="true">·</span>
-                          <span className="font-mono">{job.scheduledTime}</span>
-                        </div>
-
-                        {/* Technician Assignment */}
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                          <select
-                            value={job.assignedTechId || ''}
-                            onChange={(e) => onAssignTechnician(job.id, e.target.value)}
-                            className="text-[11px] font-medium py-1 px-2 border border-slate-200 rounded-md bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                          >
-                            <option value="">Unassigned</option>
-                            {technicians.map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {t.name.split(' ')[0]}
-                              </option>
-                            ))}
-                          </select>
-
-                          {/* Fast Action Buttons */}
-                          <div className="flex items-center gap-1">
-                            {client && tech && (
-                              <a
-                                href={createWhatsAppDispatchLink(
-                                  client.phone,
-                                  client.name,
-                                  tech.name,
-                                  job.scheduledTime
-                                )}
-                                target="_blank"
-                                rel="noreferrer"
-                                title="WhatsApp Dispatch Alert"
-                                className="p-1 rounded text-emerald-600 hover:bg-emerald-50"
-                              >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                              </a>
-                            )}
-                            <button
-                              onClick={() => onSelectJobForTechView(job.id)}
-                              title="Open in Mobile Tech view"
-                              className="p-1 rounded text-amber-700 hover:bg-amber-50"
-                            >
-                              <ChevronRight className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Status Quick Stepper */}
-                        <div className="pt-1 flex items-center justify-between">
-                          <select
-                            value={job.status}
-                            onChange={(e) =>
-                              onUpdateJobStatus(job.id, e.target.value as JobStatus)
-                            }
-                            className="text-[10px] uppercase font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5"
-                          >
-                            <option value="PENDING">Pending</option>
-                            <option value="SCHEDULED">Scheduled</option>
-                            <option value="IN_PROGRESS">In Progress</option>
-                            <option value="COMPLETED">Completed</option>
-                            <option value="INVOICED">Invoiced</option>
-                          </select>
-
-                          {job.status === 'COMPLETED' && !job.invoiceId && (
-                            <button
-                              onClick={() => onCreateInvoiceForJob(job)}
-                              className="text-[10px] text-amber-700 font-semibold hover:underline flex items-center gap-0.5"
-                            >
-                              <FileText className="w-3 h-3" />
-                              Bill Now
-                            </button>
-                          )}
-
-                          {job.invoiceId && invoice && (
-                            <button
-                              onClick={() => onSelectInvoice(invoice.id)}
-                              className="text-[10px] text-emerald-700 font-semibold hover:underline flex items-center gap-0.5"
-                            >
-                              <CheckCircle2 className="w-3 h-3" />
-                              {invoice.status}
-                            </button>
-                          )}
-                        </div>
                       </div>
-                    );
-                  })}
+
+                      <div className="flex items-center justify-between border-t border-slate-100 pt-1.5 text-[11px] text-slate-500">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3 w-3 text-slate-400" />
+                          <span>{visitLabel(job)}</span>
+                        </div>
+                        <span className="flex items-center gap-0.5 font-medium text-amber-700">
+                          Open <ChevronRight className="h-3 w-3" />
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500">{technicianLabel(job)}</div>
+                    </Link>
+                  ))}
 
                   {columnJobs.length === 0 && (
-                    <div className="h-32 flex flex-col items-center justify-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-lg">
+                    <div className="flex h-32 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 text-xs text-slate-400">
                       <span>No jobs in this queue</span>
                     </div>
                   )}
@@ -451,87 +252,45 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             );
           })}
         </div>
-      ) : viewMode === 'MAP' ? (
-        /* CENTRAL ROUTE PLANNING MAP VIEW */
-        <AdminRouteMap
-          jobs={filteredJobs}
-          clients={clients}
-          technicians={technicians}
-          onSelectJobForTechView={onSelectJobForTechView}
-          onAssignTechnician={onAssignTechnician}
-          onUpdateJobStatus={onUpdateJobStatus}
-        />
       ) : (
-        /* TABLE LIST VIEW */
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
+              <thead className="border-b border-slate-200 bg-slate-50 font-semibold text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Work Order</th>
                   <th className="px-4 py-3">Client & Location</th>
                   <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">Schedule Slot</th>
+                  <th className="px-4 py-3">Next Visit</th>
                   <th className="px-4 py-3">Technician</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredJobs.map((job) => {
-                  const client = getClient(job.clientId);
-                  const tech = getTech(job.assignedTechId);
-                  return (
-                    <tr key={job.id} className="hover:bg-slate-50/75 transition-colors">
-                      <td className="px-4 py-3 font-medium text-slate-900">
-                        <div className="font-mono">{job.jobNumber}</div>
-                        <div className="text-slate-600 line-clamp-1 max-w-xs">{job.title}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-slate-800">{client?.name}</div>
-                        <div className="text-slate-400 text-[11px]">
-                          {client?.address.suburb}, {client?.address.city}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{job.category}</td>
-                      <td className="px-4 py-3 text-slate-600">
-                        <div>{job.scheduledDate}</div>
-                        <div className="font-mono text-slate-400 text-[11px]">
-                          {job.scheduledTime}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={job.assignedTechId || ''}
-                          onChange={(e) => onAssignTechnician(job.id, e.target.value)}
-                          className="text-xs px-2 py-1 border border-slate-200 rounded bg-white"
-                        >
-                          <option value="">Unassigned</option>
-                          {technicians.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="font-semibold text-[11px] text-slate-700">
-                          {job.status}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => onSelectJobForTechView(job.id)}
-                            className="px-2.5 py-1 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded"
-                          >
-                            Open Field App
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {filteredJobs.map((job) => (
+                  <tr key={job.id} className="transition-colors hover:bg-slate-50/75">
+                    <td className="px-4 py-3 font-medium text-slate-900">
+                      <div className="font-mono">{job.number}</div>
+                      <div className="line-clamp-1 max-w-xs text-slate-600">{job.title}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-slate-800">{job.clientName}</div>
+                      <div className="text-[11px] text-slate-400">{job.locationLabel}</div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{job.category ?? '—'}</td>
+                    <td className="px-4 py-3 text-slate-600">{visitLabel(job)}</td>
+                    <td className="px-4 py-3 text-slate-600">{technicianLabel(job)}</td>
+                    <td className="px-4 py-3">
+                      <span className="text-[11px] font-semibold text-slate-700">{job.status.replace('_', ' ')}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link href={`/jobs/${job.id}`} className="rounded bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200">
+                        Open
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
