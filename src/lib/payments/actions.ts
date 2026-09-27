@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { requireRole } from '@/lib/auth/session';
+import { canUse, minimumPlanFor, PLAN_LABEL } from '@/lib/plans/plans';
 import { encryptSecret } from '@/lib/payments/secrets';
 import { readCredentials } from '@/lib/payments/accounts';
 import { startOnlinePayment } from '@/lib/payments/online';
@@ -43,6 +44,10 @@ export async function savePayFastAction(_: FormState, formData: FormData): Promi
   const parsed = PayFastSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
   const d = parsed.data;
+
+  if (d.enabled && !canUse(tenant, 'onlinePayments')) {
+    return { error: `Online payments need the ${PLAN_LABEL[minimumPlanFor('onlinePayments')]} package or higher. Upgrade under Settings → Package.` };
+  }
 
   const existing = await prisma.paymentAccount.findUnique({ where: { tenantId_provider: { tenantId: tenant.id, provider: 'PAYFAST' } } });
   // Unreadable old secrets (encryption key changed) are simply replaced by what's typed now.

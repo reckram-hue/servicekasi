@@ -4,6 +4,7 @@ import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { Role } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { pausedMembershipIds } from '@/lib/plans/people';
 import { newToken, sha256 } from './crypto';
 
 export const SESSION_COOKIE = 'sk_session';
@@ -80,6 +81,10 @@ export const requireAuth = cache(async () => {
     include: { tenant: true },
   });
   if (!membership || !membership.active) redirect('/login?error=no-access');
+  if ((await pausedMembershipIds(membership.tenant)).has(membership.id)) {
+    await deleteCurrentSession();
+    redirect('/login?error=paused');
+  }
 
   return { session, user: session.user, membership, tenant: membership.tenant };
 });

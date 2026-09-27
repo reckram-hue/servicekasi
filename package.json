@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:seed": "node --experimental-strip-types prisma/seed.ts",
+    "set-package": "node --experimental-strip-types prisma/setPackage.ts",
     "test:money": "node --experimental-strip-types src/lib/money.test.ts",
     "test:recurrence": "node --experimental-strip-types src/lib/recurrence.test.ts"
   },

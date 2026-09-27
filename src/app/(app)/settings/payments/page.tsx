@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { requireRole } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
 import { readCredentials } from '@/lib/payments/accounts';
+import { canUse, minimumPlanFor, PLAN_LABEL } from '@/lib/plans/plans';
 import { PayFastSettingsForm } from '@/components/payments/PayFastSettingsForm';
 
 export default async function PaymentSettingsPage() {
@@ -30,6 +31,16 @@ export default async function PaymentSettingsPage() {
           <p className="rounded-lg bg-slate-800/50 px-3 py-2 text-sm text-slate-400">
             PayFast only takes payments in rand. More providers are coming.
           </p>
+        ) : !canUse(tenant, 'onlinePayments') ? (
+          <div className="rounded-xl border border-amber-800 bg-amber-500/10 p-4 text-sm text-amber-200">
+            <p className="mb-3">
+              Online payments are part of the {PLAN_LABEL[minimumPlanFor('onlinePayments')]} package. Upgrade to let clients pay their
+              invoices online.
+            </p>
+            <Link href="/settings/package" className="inline-block rounded-lg bg-amber-500 px-4 py-2 font-semibold text-slate-950 hover:bg-amber-400">
+              See packages
+            </Link>
+          </div>
         ) : (
           <>
             {account && !creds && (

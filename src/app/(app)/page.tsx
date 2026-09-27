@@ -5,6 +5,7 @@ import { tenantDb } from '@/lib/db';
 import { moneyOwedSummary } from '@/lib/invoices/overdue';
 import { dashboardJobs, collectedRevenue } from '@/lib/jobs/dashboard';
 import { getOnboardingChecklist, isChecklistComplete } from '@/lib/onboarding/checklist';
+import { trialHasLapsed } from '@/lib/plans/plans';
 import { AppShell } from '@/components/AppShell';
 import { TechnicianDay } from '@/components/technician/TechnicianDay';
 
@@ -13,6 +14,9 @@ export default async function Home() {
 
   // Owners are asked to set up the authenticator app first; they may choose "Skip for now".
   if (membership.role === 'OWNER' && !user.totpEnabled && !user.totpSkippedAt) redirect('/settings/security');
+
+  // The one-time "your trial has ended" screen — shown once, then never again (trialEndScreenShownAt).
+  if (membership.role === 'OWNER' && trialHasLapsed(tenant) && !tenant.trialEndScreenShownAt) redirect('/trial-ended');
 
   if (membership.role === 'TECHNICIAN') {
     return (

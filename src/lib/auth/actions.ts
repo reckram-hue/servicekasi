@@ -8,6 +8,8 @@ import { prisma } from '@/lib/prisma';
 import { normalizeSaPhone } from '@/lib/southAfrica';
 import { starterItemRows } from '@/lib/onboarding/starterPriceList';
 import { deletePublicFile, uploadPublicFile } from '@/lib/storage';
+import { personLimit, PLAN_LABEL, currentPackage } from '@/lib/plans/plans';
+import { pausedMembershipIds, PAUSED_LOGIN_MESSAGE } from '@/lib/plans/people';
 import { hashSecret, verifySecret } from './crypto';
 import { generateTotpSecret, verifyTotp } from './totp';
 import { createSession, deleteCurrentSession, getRawSession, requireAuth, requireRole } from './session';
@@ -40,12 +42,16 @@ async function clearFailures(userId: string) {
   await prisma.user.update({ where: { id: userId }, data: { failedLoginCount: 0, lockedUntil: null } });
 }
 
-async function firstActiveTenantId(userId: string) {
-  const m = await prisma.membership.findFirst({
+/** The membership this login would sign into, plus whether the business's current package has room for it (decision 4). */
+async function firstActiveMembership(userId: string) {
+  const membership = await prisma.membership.findFirst({
     where: { userId, active: true },
     orderBy: { createdAt: 'asc' },
+    include: { tenant: true },
   });
-  return m?.tenantId ?? null;
+  if (!membership) return { membership: null, paused: false };
+  const paused = (await pausedMembershipIds(membership.tenant)).has(membership.id);
+  return { membership, paused };
 }
 
 function toE164(phone: string) {
@@ -129,9 +135,11 @@ export async function emailLoginAction(_: FormState, formData: FormData): Promis
   }
 
   await clearFailures(user.id);
+  const { membership, paused } = await firstActiveMembership(user.id);
+  if (paused) return { error: PAUSED_LOGIN_MESSAGE };
   await createSession({
     userId: user.id,
-    tenantId: await firstActiveTenantId(user.id),
+    tenantId: membership?.tenantId ?? null,
     mfaPending: user.totpEnabled,
   });
   redirect(user.totpEnabled ? '/login/verify' : '/');
@@ -161,7 +169,9 @@ export async function pinLoginAction(_: FormState, formData: FormData): Promise<
   }
 
   await clearFailures(user.id);
-  await createSession({ userId: user.id, tenantId: await firstActiveTenantId(user.id), longLived: true });
+  const { membership, paused } = await firstActiveMembership(user.id);
+  if (paused) return { error: PAUSED_LOGIN_MESSAGE };
+  await createSession({ userId: user.id, tenantId: membership?.tenantId ?? null, longLived: true });
   redirect('/');
 }
 
@@ -277,6 +287,17 @@ export async function addTechnicianAction(_: FormState, formData: FormData): Pro
   const { tenant } = await requireRole(['OWNER', 'ADMIN']);
   const parsed = AddTechnicianSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
+
+  const limit = personLimit(tenant);
+  if (limit != null) {
+    const seatsUsed = await prisma.membership.count({ where: { tenantId: tenant.id, active: true } });
+    if (seatsUsed >= limit) {
+      const nextPlan = currentPackage(tenant) === 'FREE_SOLO' ? PLAN_LABEL.TEAM : PLAN_LABEL.GROWTH;
+      return {
+        error: `Your ${PLAN_LABEL[currentPackage(tenant)]} package allows ${limit} ${limit === 1 ? 'person' : 'people'} logged in. Upgrade to ${nextPlan} to add more, under Settings → Package.`,
+      };
+    }
+  }
 
   const phone = toE164(parsed.data.phone);
   if (!phone) return { fieldErrors: { phone: ['Enter a valid cellphone number, e.g. 082 123 4567.'] } };

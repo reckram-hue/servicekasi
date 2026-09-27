@@ -96,6 +96,10 @@ model Tenant {
   plan               PlanTier           @default(FREE_SOLO)
   subscriptionStatus SubscriptionStatus @default(TRIALING)
   trialEndsAt        DateTime?
+  // True for businesses given the full app free during the beta, so they can be found again when the beta ends.
+  isBeta             Boolean            @default(false)
+  // Set once the owner has seen the "your trial has ended, here's what you'll lose" screen, so it's shown only once.
+  trialEndScreenShownAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

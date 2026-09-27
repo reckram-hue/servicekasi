@@ -14,6 +14,7 @@ export function AppChrome({
   role,
   logout,
   securityReminder,
+  trialBanner,
   showGettingStarted,
   showMyDay,
   children,
@@ -23,6 +24,7 @@ export function AppChrome({
   role: Role;
   logout: () => Promise<void>;
   securityReminder: boolean;
+  trialBanner: { daysLeft: number } | null;
   showGettingStarted: boolean;
   showMyDay: boolean;
   children: React.ReactNode;
@@ -64,6 +66,22 @@ export function AppChrome({
             Service<span className="text-amber-400">Kasi</span>
           </div>
         </div>
+        {trialBanner && pathname !== '/settings/package' && pathname !== '/trial-ended' && (
+          <div
+            className={`flex flex-wrap items-center justify-between gap-2 border-b px-6 py-2 text-sm ${
+              trialBanner.daysLeft <= 3 ? 'border-amber-900 bg-amber-500/10 text-amber-200' : 'border-slate-800 bg-slate-800/50 text-slate-300'
+            }`}
+          >
+            <span>
+              {trialBanner.daysLeft === 0
+                ? 'Your free trial ends today.'
+                : `${trialBanner.daysLeft} day${trialBanner.daysLeft === 1 ? '' : 's'} left of your free trial.`}
+            </span>
+            <Link href="/settings/package" className="font-semibold hover:underline">
+              Choose a package →
+            </Link>
+          </div>
+        )}
         {securityReminder && pathname !== '/settings/security' && (
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-900 bg-amber-500/10 px-6 py-2 text-sm text-amber-200">
             <span>Your account isn&apos;t protected by an authenticator app yet.</span>

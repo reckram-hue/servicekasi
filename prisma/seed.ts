@@ -14,12 +14,26 @@ const TECH_PIN = '4821';
 // see docs/dev-test-accounts.md. Never used outside local development.
 const OWNER_TOTP_SECRET = 'FHZHD4MHMD73Y3KKFL6RCLU5XQESJ3RK';
 
-async function main() {
-  const tenant = await prisma.tenant.upsert({
-    where: { slug: 'test-plumbing' },
-    create: { slug: 'test-plumbing', businessName: 'Test Plumbing', countryCode: 'ZA', currencyCode: 'ZAR' },
-    update: {},
+// Finds the tenant this owner email already runs, rather than matching by a
+// fixed slug — a real signup with this email (e.g. testing in the browser)
+// picks its own random slug, and matching by slug would create a second,
+// empty duplicate tenant instead of reusing it.
+async function ownersTenant() {
+  const existing = await prisma.user.findUnique({
+    where: { email: OWNER_EMAIL },
+    include: { memberships: { where: { role: 'OWNER' }, include: { tenant: true } } },
   });
+  return existing?.memberships[0]?.tenant ?? null;
+}
+
+async function main() {
+  const found = await ownersTenant();
+  // ACTIVE + GROWTH so local testing is never cut off by a trial expiring.
+  const tenant = found
+    ? await prisma.tenant.update({ where: { id: found.id }, data: { plan: 'GROWTH', subscriptionStatus: 'ACTIVE' } })
+    : await prisma.tenant.create({
+        data: { slug: 'test-plumbing', businessName: 'Test Plumbing', countryCode: 'ZA', currencyCode: 'ZAR', plan: 'GROWTH', subscriptionStatus: 'ACTIVE' },
+      });
 
   const owner = await prisma.user.upsert({
     where: { email: OWNER_EMAIL },

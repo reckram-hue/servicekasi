@@ -16,6 +16,7 @@ import {
   ListTree,
   CreditCard,
   ShieldCheck,
+  Package,
   ChevronLeft,
   ChevronRight,
   PanelLeftClose,
@@ -62,6 +63,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/settings/price-list', label: 'Price list', icon: ListTree, group: 'Settings' },
   { href: '/settings/payments', label: 'Payments', icon: CreditCard, group: 'Settings' },
   { href: '/settings/security', label: 'Security', icon: ShieldCheck, group: 'Settings' },
+  { href: '/settings/package', label: 'Package', icon: Package, group: 'Settings' },
 ];
 
 const ROLE_LABEL: Record<Role, string> = { OWNER: 'Owner', ADMIN: 'Admin', DISPATCHER: 'Office', TECHNICIAN: 'Technician' };
@@ -88,7 +90,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const pathname = usePathname();
   const navItems = NAV_ITEMS.filter(
-    (i) => (i.href !== '/getting-started' || showGettingStarted) && (i.href !== '/my-day' || showMyDay)
+    (i) =>
+      (i.href !== '/getting-started' || showGettingStarted) &&
+      (i.href !== '/my-day' || showMyDay) &&
+      (i.href !== '/settings/package' || role === 'OWNER')
   );
   const active = activeHref(navItems, pathname);
   const groups: NavItem['group'][] = ['Operations', 'Finance', 'Management', 'Settings'];

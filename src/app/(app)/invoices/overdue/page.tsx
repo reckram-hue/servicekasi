@@ -4,7 +4,9 @@ import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
 import { formatMoney } from '@/lib/money';
 import { overdueInvoiceList, overdueBucket } from '@/lib/invoices/overdue';
+import { canUse, minimumPlanFor, PLAN_LABEL } from '@/lib/plans/plans';
 import { SendReminderButton } from '@/components/invoices/SendReminderButton';
+import { UpgradeBadge } from '@/components/plans/UpgradeBadge';
 
 function displayName(c: { firstName: string; lastName: string | null; companyName: string | null }) {
   const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
@@ -23,6 +25,7 @@ export default async function OverdueInvoicesPage() {
   const db = tenantDb(tenant.id);
   const [invoices, origin] = await Promise.all([overdueInvoiceList(db), siteOrigin()]);
   const businessName = tenant.tradingName || tenant.businessName;
+  const remindersUnlocked = canUse(tenant, 'paymentReminders');
 
   const buckets: { label: string; rows: typeof invoices }[] = [
     { label: '0–30 days', rows: [] },
@@ -69,7 +72,11 @@ export default async function OverdueInvoicesPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <SendReminderButton clientPhone={inv.client.phone} message={message} />
+                          {remindersUnlocked ? (
+                            <SendReminderButton clientPhone={inv.client.phone} message={message} />
+                          ) : (
+                            <UpgradeBadge plan={PLAN_LABEL[minimumPlanFor('paymentReminders')]} />
+                          )}
                           <Link href={`/invoices/${inv.id}`} className="rounded-md bg-slate-800 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700">
                             Open
                           </Link>
