@@ -1,4 +1,7 @@
-import React from 'react';
+'use client';
+
+import React, { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 
 export function AuthCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
@@ -29,15 +32,31 @@ export function Field({
   errors?: string[];
   hint?: string;
 } & React.InputHTMLAttributes<HTMLInputElement>) {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPasswordField = type === 'password';
+  const displayType = isPasswordField && showPassword ? 'text' : type;
+
   return (
     <label className="block mb-4">
       <span className="block text-sm font-medium text-slate-300 mb-1">{label}</span>
-      <input
-        name={name}
-        type={type}
-        className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
-        {...rest}
-      />
+      <div className="relative">
+        <input
+          name={name}
+          type={displayType}
+          className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
+          {...rest}
+        />
+        {isPasswordField && (
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+            tabIndex={-1}
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        )}
+      </div>
       {hint && !errors?.length && <span className="mt-1 block text-xs text-slate-500">{hint}</span>}
       {errors?.map((e) => (
         <span key={e} className="mt-1 block text-xs text-red-400">
