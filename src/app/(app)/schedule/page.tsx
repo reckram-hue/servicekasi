@@ -57,9 +57,13 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
     }
   }
 
+  // Flags both sides of an overlap, not just the later-starting visit — otherwise the
+  // earlier one shows no warning at all even though it's equally double-booked.
   function isDoubleBooked(list: typeof visits, index: number): boolean {
+    const current = list[index];
     const prev = list[index - 1];
-    return !!prev && prev.endsAt > list[index].startsAt;
+    const next = list[index + 1];
+    return (!!prev && prev.endsAt > current.startsAt) || (!!next && current.endsAt > next.startsAt);
   }
 
   return (
