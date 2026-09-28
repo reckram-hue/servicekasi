@@ -70,3 +70,58 @@ export async function vatSummary(db: TenantDb, tenant: { defaultTaxRateBp: numbe
 
   return { outputVatCents, inputVatCents, netVatCents: outputVatCents - inputVatCents };
 }
+
+export type AgedBucketKey = 'current' | 'd30' | 'd60' | 'd90' | 'd90plus';
+
+export const AGED_BUCKET_LABEL: Record<AgedBucketKey, string> = {
+  current: 'Current',
+  d30: '1–30 days',
+  d60: '31–60 days',
+  d90: '61–90 days',
+  d90plus: '90+ days',
+};
+
+export type AgedBill = { id: string; supplier: string; dueDate: Date; balanceCents: number; daysOverdue: number };
+export type CreditorsAged = {
+  asOf: Date;
+  totalCents: number;
+  buckets: Record<AgedBucketKey, { totalCents: number; bills: AgedBill[] }>;
+};
+
+function agedBucket(daysOverdue: number): AgedBucketKey {
+  if (daysOverdue <= 0) return 'current';
+  if (daysOverdue <= 30) return 'd30';
+  if (daysOverdue <= 60) return 'd60';
+  if (daysOverdue <= 90) return 'd90';
+  return 'd90plus';
+}
+
+/** Every bill not yet fully paid, as of today, bucketed by how overdue it is (a standard aged-payables report). */
+export async function creditorsAgedReport(db: TenantDb, asOf: Date): Promise<CreditorsAged> {
+  const openBills = await db.bill.findMany({
+    where: { status: { not: 'PAID' } },
+    orderBy: { dueDate: 'asc' },
+    select: { id: true, supplier: true, dueDate: true, amountCents: true, paidCents: true },
+  });
+
+  const buckets: CreditorsAged['buckets'] = {
+    current: { totalCents: 0, bills: [] },
+    d30: { totalCents: 0, bills: [] },
+    d60: { totalCents: 0, bills: [] },
+    d90: { totalCents: 0, bills: [] },
+    d90plus: { totalCents: 0, bills: [] },
+  };
+
+  let totalCents = 0;
+  for (const b of openBills) {
+    const balanceCents = b.amountCents - b.paidCents;
+    if (balanceCents <= 0) continue;
+    const daysOverdue = Math.floor((asOf.getTime() - b.dueDate.getTime()) / 86_400_000);
+    const bucket = buckets[agedBucket(daysOverdue)];
+    bucket.totalCents += balanceCents;
+    bucket.bills.push({ id: b.id, supplier: b.supplier, dueDate: b.dueDate, balanceCents, daysOverdue });
+    totalCents += balanceCents;
+  }
+
+  return { asOf, totalCents, buckets };
+}

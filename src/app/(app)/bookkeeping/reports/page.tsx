@@ -6,6 +6,7 @@ import { UpgradeBadge } from '@/components/plans/UpgradeBadge';
 export default async function ReportsPage() {
   const { tenant } = await requireRole();
   const vatUnlocked = canUse(tenant, 'vatSummary');
+  const creditorsUnlocked = canUse(tenant, 'creditors');
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
@@ -48,6 +49,27 @@ export default async function ReportsPage() {
                 <UpgradeBadge plan={PLAN_LABEL[minimumPlanFor('vatSummary')]} />
               </div>
             ))}
+
+          {creditorsUnlocked ? (
+            <Link
+              href="/bookkeeping/reports/creditors-aged"
+              className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 p-4 hover:border-slate-600"
+            >
+              <div>
+                <div className="font-medium">Creditors aged</div>
+                <div className="text-sm text-slate-500">Who you owe, by how overdue it is</div>
+              </div>
+              <span className="text-slate-500">→</span>
+            </Link>
+          ) : (
+            <div className="flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-900 p-4 opacity-70">
+              <div>
+                <div className="font-medium">Creditors aged</div>
+                <div className="text-sm text-slate-500">Who you owe, by how overdue it is</div>
+              </div>
+              <UpgradeBadge plan={PLAN_LABEL[minimumPlanFor('creditors')]} />
+            </div>
+          )}
         </div>
       </div>
     </div>
