@@ -1,6 +1,13 @@
 # Client messaging (CRM broadcasts) — plan
 
-Status: draft for review, 2026-09-28 [Opus 5.5]. Nothing built yet. Decisions below need the owner's OK.
+Status: decisions confirmed 2026-09-28 [Opus 5.5]. Nothing built yet.
+
+## Confirmed with the owner (2026-09-28)
+
+- WhatsApp send lists first, email second — agreed.
+- Package placement (decision 10) — agreed.
+- **SMS: keep as an optional add-on later**, for the businesses (or their clients) who still want it. Owner's view: SMS is fading in SA because people are bombarded with it, so it's not a priority channel — but worth offering. Build the send pipeline so a channel can be added without reshaping `Broadcast`.
+- **Sending domain and product name are not final.** The "ServiceKasi" name may change. Never hard-code the domain or brand: the sending address comes from an env var (`EMAIL_FROM_DOMAIN`), and the product name shown in emails from one config value.
 
 ## The goal
 
@@ -88,8 +95,6 @@ Steps 1–3: 2–3 sessions (usable on their own — WhatsApp broadcasts with pr
 - **"Service notice" can be abused as a loophole** for marketing. The keyword nudge helps; the audit trail is the real defence if a client complains.
 - **Owners may import clients they never actually worked for.** The CSV import screen should carry one line: "Only import people who are your customers."
 
-## Questions for the owner
+## Still open
 
-- Happy with WhatsApp send lists first (free, manual) and email second?
-- Package placement in decision 10 OK?
-- Do you already own `servicekasi.co.za` (needed for sending email from it)?
+- Final product name and sending domain (owner deciding). Not needed until Step 4.
