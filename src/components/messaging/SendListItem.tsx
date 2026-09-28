@@ -3,6 +3,12 @@
 import { useRef, useTransition } from 'react';
 import { markRecipientSentAction } from '@/lib/messaging/actions';
 
+const SKIP_REASON_LABEL: Record<string, string> = {
+  opted_out: 'Skipped — opted out',
+  no_phone: 'Skipped — no phone',
+  no_email: 'Skipped — no email',
+};
+
 export function SendListItem({
   recipientId,
   broadcastId,
@@ -10,6 +16,8 @@ export function SendListItem({
   phone,
   message,
   status,
+  skipReason,
+  sentAt,
 }: {
   recipientId: string;
   broadcastId: string;
@@ -17,6 +25,8 @@ export function SendListItem({
   phone: string | null;
   message: string;
   status: 'PENDING' | 'SENT' | 'SKIPPED' | 'FAILED';
+  skipReason: string | null;
+  sentAt: Date | null;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [isPending, startTransition] = useTransition();
@@ -33,9 +43,11 @@ export function SendListItem({
     <div className="flex items-center justify-between gap-3 border-b border-slate-800 p-3 last:border-0">
       <span className="text-sm text-slate-200">{name}</span>
       {status === 'SENT' ? (
-        <span className="rounded-md bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">Sent</span>
+        <span className="rounded-md bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">
+          Sent{sentAt && ` · ${sentAt.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short' })} ${sentAt.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })}`}
+        </span>
       ) : status === 'SKIPPED' ? (
-        <span className="rounded-md bg-slate-800 px-3 py-1 text-xs text-slate-500">Skipped — no contact details</span>
+        <span className="rounded-md bg-slate-800 px-3 py-1 text-xs text-slate-500">{SKIP_REASON_LABEL[skipReason ?? ''] ?? 'Skipped'}</span>
       ) : waHref ? (
         <button
           type="button"

@@ -1,6 +1,6 @@
 # Client messaging (CRM broadcasts) — plan
 
-Status: decisions confirmed 2026-09-28 [Opus 5.5]. Steps 1–3 built and tested 2026-09-28 [Sonnet 5] — WhatsApp broadcasts with POPIA opt-outs are live. Steps 4–5 (email sending, history) not started.
+Status: decisions confirmed 2026-09-28 [Opus 5.5]. Steps 1–3 and 5 built and tested 2026-09-28 [Sonnet 5] — WhatsApp broadcasts with POPIA opt-outs and history are live. Step 4 (email sending) not started — blocked on the product name/domain decision.
 
 ## Confirmed with the owner (2026-09-28)
 
@@ -82,8 +82,9 @@ Saving creates the `Broadcast` + `BroadcastRecipient` rows (including SKIPPED on
 Resend integration, DNS records (SPF/DKIM) for the sending domain, queued sending in small batches with retries, unsubscribe link and `List-Unsubscribe` header on every promotion, bounce/complaint webhook marking addresses bad, daily cap.
 **Test:** real sends to the owner's own inbox; unsubscribe link works; cap refuses the 501st.
 
-### Step 5 — History  [Sonnet 5]
-`/messages` list of past broadcasts with reach/skipped/sent counts; open one to see every recipient and outcome.
+### Step 5 — History  [Sonnet 5] ✅ done
+`/messages` list of past broadcasts, each showing reach/sent/skipped counts; open one (`/messages/[id]`, already built in Step 3) to see every recipient with its outcome — sent with a timestamp, or skipped with the actual reason (opted out / no phone / no email).
+**Tested:** the `/messages` list shows "Reached 1 · 1 sent"; created a promotion against a second test client while the seed client was opted out and confirmed the detail page showed "Sipho Test — Send via WhatsApp" and "Thandi Nkosi-Updated — Skipped — opted out", with "Reply STOP to opt out of promotions." appended to the body. Test data removed after.
 
 ## Rough size
 

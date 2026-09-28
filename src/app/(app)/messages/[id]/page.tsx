@@ -23,6 +23,7 @@ export default async function BroadcastPage({ params }: { params: Promise<{ id: 
   const sentCount = broadcast.recipients.filter((r) => r.status === 'SENT').length;
   const pendingCount = broadcast.recipients.filter((r) => r.status === 'PENDING').length;
   const skippedCount = broadcast.recipients.filter((r) => r.status === 'SKIPPED').length;
+  const reachCount = sentCount + pendingCount;
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
@@ -30,10 +31,15 @@ export default async function BroadcastPage({ params }: { params: Promise<{ id: 
         <Link href="/messages" className="text-sm text-amber-400 hover:underline">
           ← Messages
         </Link>
-        <h1 className="mt-2 text-2xl font-bold">{broadcast.kind === 'PROMOTION' ? 'Promotion' : 'Service notice'}</h1>
+        <div className="mt-2 flex items-center justify-between">
+          <h1 className="text-2xl font-bold">{broadcast.kind === 'PROMOTION' ? 'Promotion' : 'Service notice'}</h1>
+          <span className="text-xs text-slate-500">
+            {broadcast.createdAt.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </span>
+        </div>
         <p className="mb-4 mt-3 whitespace-pre-wrap rounded-xl border border-slate-800 bg-slate-900 p-4 text-sm text-slate-300">{broadcast.body}</p>
         <p className="mb-4 text-sm text-slate-400">
-          {sentCount} sent · {pendingCount} to go
+          Reached {reachCount} · {sentCount} sent · {pendingCount} to go
           {skippedCount > 0 && ` · ${skippedCount} skipped`}
           {pendingCount === 0 && ' · all done'}
         </p>
@@ -47,6 +53,8 @@ export default async function BroadcastPage({ params }: { params: Promise<{ id: 
               phone={r.client.phone}
               message={applyMergeFields(broadcast.body, r.client)}
               status={r.status}
+              skipReason={r.skipReason}
+              sentAt={r.sentAt}
             />
           ))}
         </div>

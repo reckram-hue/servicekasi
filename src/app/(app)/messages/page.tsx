@@ -43,7 +43,9 @@ export default async function MessagesPage() {
           <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
             {broadcasts.map((b) => {
               const sent = b.recipients.filter((r) => r.status === 'SENT').length;
-              const total = b.recipients.length;
+              const pending = b.recipients.filter((r) => r.status === 'PENDING').length;
+              const skipped = b.recipients.filter((r) => r.status === 'SKIPPED').length;
+              const reach = sent + pending;
               return (
                 <Link
                   key={b.id}
@@ -56,8 +58,9 @@ export default async function MessagesPage() {
                       {b.createdAt.toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </div>
                   </div>
-                  <span className="text-xs text-slate-400">
-                    {sent}/{total} sent
+                  <span className="text-right text-xs text-slate-400">
+                    Reached {reach} · {sent} sent
+                    {skipped > 0 && <span className="block text-slate-500">{skipped} skipped</span>}
                   </span>
                 </Link>
               );
