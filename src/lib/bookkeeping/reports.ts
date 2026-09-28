@@ -1,5 +1,6 @@
 import 'server-only';
 import type { TenantDb } from '@/lib/db';
+import { invoiceBalanceCents } from '@/lib/invoices/payments';
 
 export type ProfitAndLoss = {
   incomeCents: number;
@@ -120,6 +121,58 @@ export async function creditorsAgedReport(db: TenantDb, asOf: Date): Promise<Cre
     const bucket = buckets[agedBucket(daysOverdue)];
     bucket.totalCents += balanceCents;
     bucket.bills.push({ id: b.id, supplier: b.supplier, dueDate: b.dueDate, balanceCents, daysOverdue });
+    totalCents += balanceCents;
+  }
+
+  return { asOf, totalCents, buckets };
+}
+
+export type AgedInvoice = { id: string; number: string | null; clientName: string; dueDate: Date; balanceCents: number; daysOverdue: number };
+export type DebtorsAged = {
+  asOf: Date;
+  totalCents: number;
+  buckets: Record<AgedBucketKey, { totalCents: number; invoices: AgedInvoice[] }>;
+};
+
+function clientDisplayName(c: { firstName: string; lastName: string | null; companyName: string | null }): string {
+  const name = [c.firstName, c.lastName].filter(Boolean).join(' ');
+  return c.companyName ? `${name} (${c.companyName})` : name;
+}
+
+/** Every issued invoice with a balance still owed, as of today, bucketed the same way as creditorsAgedReport — the mirror-image report for money owed to the business. */
+export async function debtorsAgedReport(db: TenantDb, asOf: Date): Promise<DebtorsAged> {
+  const openInvoices = await db.invoice.findMany({
+    where: { kind: { not: 'CREDIT_NOTE' }, status: { in: ['SENT', 'PARTIALLY_PAID'] } },
+    orderBy: { dueAt: 'asc' },
+    select: {
+      id: true,
+      number: true,
+      dueAt: true,
+      issuedAt: true,
+      totalCents: true,
+      creditedCents: true,
+      paidCents: true,
+      client: { select: { firstName: true, lastName: true, companyName: true } },
+    },
+  });
+
+  const buckets: DebtorsAged['buckets'] = {
+    current: { totalCents: 0, invoices: [] },
+    d30: { totalCents: 0, invoices: [] },
+    d60: { totalCents: 0, invoices: [] },
+    d90: { totalCents: 0, invoices: [] },
+    d90plus: { totalCents: 0, invoices: [] },
+  };
+
+  let totalCents = 0;
+  for (const inv of openInvoices) {
+    const balanceCents = invoiceBalanceCents(inv);
+    if (balanceCents <= 0) continue; // a negative balance is a credit owed to the client, not a debt — not this report
+    const dueDate = inv.dueAt ?? inv.issuedAt ?? asOf;
+    const daysOverdue = Math.floor((asOf.getTime() - dueDate.getTime()) / 86_400_000);
+    const bucket = buckets[agedBucket(daysOverdue)];
+    bucket.totalCents += balanceCents;
+    bucket.invoices.push({ id: inv.id, number: inv.number, clientName: clientDisplayName(inv.client), dueDate, balanceCents, daysOverdue });
     totalCents += balanceCents;
   }
 

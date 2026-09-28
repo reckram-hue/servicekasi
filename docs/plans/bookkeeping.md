@@ -1,6 +1,6 @@
 # Bookkeeping (cashbook) — plan
 
-Status: Phase 1 (1a + 1b) built and tested 2026-09-28 — the full cashbook, creditors, automatic invoice-payment posting. Reports (P&L, VAT summary with a 2-month VAT201 view, and creditors aged) built and tested 2026-09-28 too, ahead of the rest of Phase 2 — see "Reports" below. Bank CSV import and reconciliation are not built.
+Status: Phase 1 (1a + 1b) built and tested 2026-09-28 — the full cashbook, creditors, automatic invoice-payment posting. Reports (P&L, VAT summary with a 2-month VAT201 view, creditors aged, debtors aged) built and tested 2026-09-28 too, ahead of the rest of Phase 2 — see "Reports" below. Bank CSV import and reconciliation are not built.
 
 ## The goal
 
@@ -77,7 +77,8 @@ Engine: every screen above posts through a hidden double-entry ledger (`src/lib/
 - **Profit & loss** (month, with prev/next navigation, or the current SA tax year — March–February). Income is cash actually received on invoices in the period, independent of whether the cashbook has been touched at all. Expenses are accrual — everything posted to an expense category's ledger account in the period (plain expenses and bills raised), whether paid off yet or not, broken down by category. Free Solo included.
 - **VAT summary** per period — output VAT (the VAT share of cash actually collected, proportional per payment) minus input VAT (back-calculated from expenses/bills marked "Includes VAT" at the tenant's standard rate) — figures for the SARS VAT201. A VAT201 covers two months, so alongside month/tax-year navigation there's "Include next month (2-month VAT period)": once in a 2-month view, prev/next pages two months at a time. SARS fixes which months pair up (Category A vs B), which we don't ask the user to configure — they navigate to the pairing that matches their own category rather than the report guessing it. Only shown to VAT-registered tenants; Team/Growth only (`canUse(tenant, 'vatSummary')`, checked server-side).
 - **Creditors aged** — `/bookkeeping/reports/creditors-aged` — every bill not yet fully paid, as of today, bucketed Current / 1–30 / 31–60 / 61–90 / 90+ days overdue, with a total and a drill-through list of bills in each bucket. Team/Growth only, same gate as the rest of the creditors feature (if you can't raise a bill, there's nothing to age).
-- **Not built**: the existing debtors list surfaced here too, and the accountant export (CSV/Excel + zip of slip photos) — left for when Phase 2's bank reconciliation work happens, since the export format may want to match whatever bank-import shape lands then.
+- **Debtors aged** — `/bookkeeping/reports/debtors-aged` — the mirror image: every issued invoice with a balance still owed, as of today, same five buckets, drilling through to the invoice. Team/Growth only (`canUse(tenant, 'debtorsAged')`) — invoicing itself stays free on every package, but this formal aged-receivables view sits alongside the other reports as a paid convenience.
+- **Not built**: the accountant export (CSV/Excel + zip of slip photos) — left for when Phase 2's bank reconciliation work happens, since the export format may want to match whatever bank-import shape lands then.
 
 ## Phase 3 — Accounting package sync (top tier)
 
