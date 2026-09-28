@@ -57,13 +57,13 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
     }
   }
 
-  // Flags both sides of an overlap, not just the later-starting visit — otherwise the
-  // earlier one shows no warning at all even though it's equally double-booked.
+  // Checks against every other visit for this technician, not just the adjacent ones in the
+  // sorted list — a long visit can overlap a later one without overlapping whatever's between
+  // them (e.g. a 9-11 job and a separate 10:00 visit, with an unrelated 9:30-9:45 stop between
+  // them in start order), and a neighbour-only check would miss that second overlap entirely.
   function isDoubleBooked(list: typeof visits, index: number): boolean {
     const current = list[index];
-    const prev = list[index - 1];
-    const next = list[index + 1];
-    return (!!prev && prev.endsAt > current.startsAt) || (!!next && current.endsAt > next.startsAt);
+    return list.some((other, i) => i !== index && other.startsAt < current.endsAt && current.startsAt < other.endsAt);
   }
 
   return (
