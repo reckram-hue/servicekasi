@@ -1,6 +1,6 @@
 # Packages (Free Solo / Team / Growth) — plan
 
-Status: approved 2026-09-27. Nothing built yet.
+Status: approved 2026-09-27, built and tested 2026-09-27 [Sonnet 5]. The rulebook (`src/lib/plans/plans.ts`), server-side feature gating, the trial countdown banner and one-time "trial ended" screen, `/settings/package`, and the `set-package` CLI are all live. See `docs/plans/bookkeeping.md` for how later features (creditors, VAT summary, debtors aged, accountant export) plug into the same `canUse()` gate.
 
 ## Agreed with the owner
 

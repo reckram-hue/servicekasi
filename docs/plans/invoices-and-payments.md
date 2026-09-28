@@ -1,6 +1,6 @@
 # Plan: Invoices and Payments (Phase 3)
 
-Status: agreed plan, ready to build step by step. Written 2026-09-26.
+Status: all 8 steps built and tested. Written 2026-09-26.
 
 Each step below is one sitting of work that ends with something testable in
 the browser, then a commit. Build them **in order**: each depends on the one
