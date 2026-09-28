@@ -97,3 +97,14 @@ export async function requireRole(allowed: Role[] = OFFICE_ROLES) {
   if (!allowed.includes(auth.membership.role)) redirect('/');
   return auth;
 }
+
+/**
+ * Gates the cross-tenant "every business on the platform" admin pages —
+ * ServiceKasi staff only, separate from any business's own OWNER/ADMIN role.
+ */
+export const requirePlatformAdmin = cache(async () => {
+  const session = await getRawSession();
+  if (!session || session.mfaPending) redirect('/login');
+  if (!session.user.isPlatformAdmin) redirect('/');
+  return { user: session.user };
+});

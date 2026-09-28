@@ -35,6 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       trialBanner={trialBanner}
       showGettingStarted={onboardingIncomplete}
       showMyDay={membership.doesFieldwork}
+      isPlatformAdmin={user.isPlatformAdmin}
     >
       {children}
     </AppChrome>

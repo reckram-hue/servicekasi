@@ -27,6 +27,7 @@ import {
   Rocket,
   Wrench,
   X,
+  ShieldAlert,
 } from 'lucide-react';
 import type { Role } from '@prisma/client';
 
@@ -39,6 +40,7 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   showGettingStarted: boolean;
   showMyDay: boolean;
+  isPlatformAdmin: boolean;
   /** Phone-width off-canvas drawer state — independent of the desktop collapse/expand above. */
   isMobileOpen: boolean;
   onCloseMobile: () => void;
@@ -48,7 +50,7 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
-  group: 'Operations' | 'Finance' | 'Management' | 'Settings';
+  group: 'Operations' | 'Finance' | 'Management' | 'Settings' | 'Platform';
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -70,6 +72,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/settings/payments', label: 'Payments', icon: CreditCard, group: 'Settings' },
   { href: '/settings/security', label: 'Security', icon: ShieldCheck, group: 'Settings' },
   { href: '/settings/package', label: 'Package', icon: Package, group: 'Settings' },
+  { href: '/admin/tenants', label: 'All businesses', icon: ShieldAlert, group: 'Platform' },
 ];
 
 const ROLE_LABEL: Record<Role, string> = { OWNER: 'Owner', ADMIN: 'Admin', DISPATCHER: 'Office', TECHNICIAN: 'Technician' };
@@ -91,6 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
   showGettingStarted,
   showMyDay,
+  isPlatformAdmin,
   isMobileOpen,
   onCloseMobile,
 }) => {
@@ -99,10 +103,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     (i) =>
       (i.href !== '/getting-started' || showGettingStarted) &&
       (i.href !== '/my-day' || showMyDay) &&
-      (i.href !== '/settings/package' || role === 'OWNER')
+      (i.href !== '/settings/package' || role === 'OWNER') &&
+      (i.group !== 'Platform' || isPlatformAdmin)
   );
   const active = activeHref(navItems, pathname);
-  const groups: NavItem['group'][] = ['Operations', 'Finance', 'Management', 'Settings'];
+  const groups: NavItem['group'][] = ['Operations', 'Finance', 'Management', 'Settings', 'Platform'];
   const initials = userName
     .split(' ')
     .map((p) => p[0])

@@ -17,6 +17,7 @@ export function AppChrome({
   trialBanner,
   showGettingStarted,
   showMyDay,
+  isPlatformAdmin,
   children,
 }: {
   userName: string;
@@ -27,6 +28,7 @@ export function AppChrome({
   trialBanner: { daysLeft: number } | null;
   showGettingStarted: boolean;
   showMyDay: boolean;
+  isPlatformAdmin: boolean;
   children: React.ReactNode;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -47,6 +49,7 @@ export function AppChrome({
         onToggleCollapse={() => setIsCollapsed((c) => !c)}
         showGettingStarted={showGettingStarted}
         showMyDay={showMyDay}
+        isPlatformAdmin={isPlatformAdmin}
         isMobileOpen={isMobileOpen}
         onCloseMobile={() => setIsMobileOpen(false)}
       />
