@@ -93,6 +93,9 @@ model Tenant {
   invoiceTerms            String?
   defaultPaymentTermsDays Int     @default(7) // 0 = due on receipt
 
+  // WhatsApp review request, shown once an invoice is fully paid (docs/plans/onboarding.md, "Later").
+  googleReviewUrl String?
+
   plan               PlanTier           @default(FREE_SOLO)
   subscriptionStatus SubscriptionStatus @default(TRIALING)
   trialEndsAt        DateTime?

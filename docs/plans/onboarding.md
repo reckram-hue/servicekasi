@@ -1,6 +1,6 @@
 # Plan: First-day setup (Phase 4)
 
-Status: Steps 1, 2, 3 and 4 done. CSV client import and the Google Business Profile booking page (from "Later" below) done 2026-09-28. Written 2026-09-27.
+Status: Steps 1, 2, 3 and 4 done. All three "Later" items — CSV client import, the Google Business Profile booking page, and review requests — done 2026-09-28. Written 2026-09-27.
 
 Goal: a new business signs up and sends its first quote or invoice in under
 15 minutes, without reading a manual. Every step ends with something testable
@@ -113,6 +113,18 @@ it land in `/requests`; "Add as client" created the client correctly
 field showed the visitor a normal success message while creating no row;
 an unknown slug 404s.
 
-## Later
-- Review requests: after a job is paid, a WhatsApp message with the
-  business's Google review link.
+### Review requests  [Sonnet 5] ✅ done
+- `Tenant.googleReviewUrl` (optional) — set once in Settings → Business
+  under "Reviews", with a hint on where to find it in the Google Business
+  Profile dashboard.
+- Once set, any invoice showing status **Paid** gets an "Ask for a review"
+  card with a one-tap "Send via WhatsApp" link, prefilled with a short
+  thank-you message and the review link — same `wa.me` pattern already
+  used to send the invoice itself, so no new sending mechanism was needed.
+  Nothing is sent automatically; the owner still taps to send, same as
+  every other WhatsApp message in the app.
+- Shown only when the invoice is fully paid (not part-paid, not just a
+  zero balance from a void or credit) and the client has a phone number.
+**Tested:** set the link in settings, confirmed the card appears on a Paid
+invoice with a correctly formatted WhatsApp link (client's number, review
+URL included) and does not appear on an unpaid one.

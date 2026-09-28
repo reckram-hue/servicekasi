@@ -39,6 +39,7 @@ const BusinessSettingsSchema = z
       .min(0)
       .max(365, { error: 'Use 365 days or fewer.' })
       .default(7),
+    googleReviewUrl: z.union([z.url({ error: 'Enter a valid link.' }), z.literal('')]).optional(),
     // Only sent while numbering is still editable (no invoice issued yet).
     invoicePrefix: z
       .string()
@@ -97,6 +98,7 @@ export async function updateBusinessSettingsAction(_: FormState, formData: FormD
         defaultQuoteValidDays: d.defaultQuoteValidDays,
         invoiceTerms: d.invoiceTerms ?? null,
         defaultPaymentTermsDays: d.defaultPaymentTermsDays,
+        googleReviewUrl: d.googleReviewUrl || null,
       },
     });
     return null;

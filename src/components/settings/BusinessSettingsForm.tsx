@@ -27,6 +27,7 @@ export type BusinessDefaults = {
   defaultQuoteValidDays: number;
   invoiceTerms: string | null;
   defaultPaymentTermsDays: number;
+  googleReviewUrl: string | null;
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -207,6 +208,18 @@ export function BusinessSettingsForm({
             </p>
           </>
         )}
+      </Section>
+
+      <Section title="Reviews">
+        <Field
+          label="Google review link (optional)"
+          name="googleReviewUrl"
+          type="url"
+          placeholder="https://g.page/r/.../review"
+          defaultValue={tenant.googleReviewUrl ?? ''}
+          errors={e?.googleReviewUrl}
+          hint="Find this in your Google Business Profile under 'Get more reviews'. Once set, a paid invoice offers a one-tap WhatsApp review request."
+        />
       </Section>
 
       <SubmitButton pending={pending}>Save settings</SubmitButton>

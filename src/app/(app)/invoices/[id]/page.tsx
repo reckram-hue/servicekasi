@@ -234,6 +234,23 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                   moneyAccounts={moneyAccounts}
                 />
               )}
+
+              {invoice.status === 'PAID' && tenant.googleReviewUrl && invoice.client.phone && (
+                <div className="rounded-xl border border-slate-800 p-4">
+                  <h2 className="mb-1 text-sm font-medium uppercase tracking-wide text-slate-500">Ask for a review</h2>
+                  <p className="mb-3 text-sm text-slate-400">This invoice is fully paid — a good moment to ask for a Google review.</p>
+                  <a
+                    href={`https://wa.me/${invoice.client.phone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                      `Hi ${invoice.client.firstName}, thanks for choosing ${businessName}! If you have a moment, we'd really appreciate a quick review: ${tenant.googleReviewUrl}`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded-lg bg-emerald-600 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-emerald-500"
+                  >
+                    Send via WhatsApp
+                  </a>
+                </div>
+              )}
             </div>
           </>
         ) : (

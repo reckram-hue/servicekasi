@@ -44,6 +44,7 @@ export default async function BusinessSettingsPage() {
             defaultQuoteValidDays: tenant.defaultQuoteValidDays,
             invoiceTerms: tenant.invoiceTerms,
             defaultPaymentTermsDays: tenant.defaultPaymentTermsDays,
+            googleReviewUrl: tenant.googleReviewUrl,
           }}
           invoiceNumbering={numbering}
         />
