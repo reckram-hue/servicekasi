@@ -17,7 +17,12 @@ const SOURCE_LABEL: Record<string, string> = {
 
 export default async function RequestsPage() {
   const { tenant } = await requireRole();
-  const requests = await openServiceRequests(tenantDb(tenant.id));
+  const db = tenantDb(tenant.id);
+  const [requests, technicianRows] = await Promise.all([
+    openServiceRequests(db),
+    db.membership.findMany({ where: { OR: [{ role: 'TECHNICIAN' }, { doesFieldwork: true }], active: true }, include: { user: true }, orderBy: { createdAt: 'asc' } }),
+  ]);
+  const technicians = technicianRows.map((t) => ({ id: t.id, name: t.user.name }));
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
@@ -31,7 +36,7 @@ export default async function RequestsPage() {
           and anywhere else you&rsquo;ve added one.
         </p>
 
-        <VoiceMemoRecorder />
+        <VoiceMemoRecorder technicians={technicians} />
 
         {requests.length === 0 ? (
           <p className="rounded-xl border border-dashed border-slate-800 p-10 text-center text-slate-500">Nothing new right now.</p>
@@ -43,7 +48,7 @@ export default async function RequestsPage() {
                   <div>
                     <div className="font-medium text-slate-100">{r.contactName || 'No name given'}</div>
                     <div className="text-xs text-slate-500">
-                      {r.contactPhone} · {SOURCE_LABEL[r.source] ?? r.source} · {formatDateStr(localDateStr(r.createdAt, 'UTC'))}
+                      {r.contactPhone} · {SOURCE_LABEL[r.source] ?? r.source} · {formatDateStr(localDateStr(r.createdAt, 'UTC'))} at {new Date(r.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       {r.preferredDate && ` · wants ${formatDateStr(localDateStr(r.preferredDate, 'UTC'))}`}
                     </div>
                   </div>

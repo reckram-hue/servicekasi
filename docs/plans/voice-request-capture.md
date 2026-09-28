@@ -59,6 +59,16 @@ GPT-4o-mini prompt to extract `clientName`, `phone`, `serviceRequired`, `urgency
 `RequestSource.VOICE_MEMO` badge in the requests list, the Growth-tier gate via `canUse`, the "transcribed then deleted" notice, and a friendly failure message if transcription fails (bad connection, silence, background noise) rather than a raw error.
 **Test:** a Free Solo tenant sees the upgrade prompt instead of the record button; a failed transcription shows a clear retry message.
 
+### Step 4 — Book straight onto the calendar  [Sonnet 5] ✅ done
+Added after real usage exposed a gap: the owner's actual scenario is "Dennis phones asking for a quote visit Friday at 10" — recording a memo and then still having to separately open Jobs, create a job, and add a visit was one step too many. The review form (in `VoiceMemoRecorder.tsx`) now has a "Book this straight onto the calendar" checkbox. Off (default): unchanged, saves a lead exactly as Step 1 did. On: shows a date + start time and, only if there's more than one active technician, a picker to choose who it's for (with exactly one technician, it's auto-assigned with no picker shown — matches a one-person or small-crew business where asking "who?" would be a pointless extra tap). Submitting then creates a real `Client` (matched by phone if one already exists, so a repeat caller doesn't get duplicated), a `ServiceRequest` marked `CONVERTED`, a `Job`, and a one-hour `Visit` with that technician assigned — reusing the exact same `Job`/`Visit`/`VisitAssignment` models and technician-validation logic the normal "New job" → "Add visit" flow already uses, not a parallel path.
+
+**Decisions made here** (delegated to me for now, to revisit with beta tester feedback):
+- **No separate "Quotation" object.** Investigated first: `Quote` is a genuinely different model in this app (pricing/line-items/approval, no date or technician at all) that only becomes a `Job` through an explicit convert step later — a voice memo has no pricing to put in one. So "come give a quotation" and "come Friday at 10" both just become a scheduled `Job`+`Visit` (the normal way a quote *visit* gets booked in this app already); if it turns into real paid work, that's the same "convert" step as any other job.
+- **One form, not two paths.** A checkbox, not separate buttons — leaving it unchecked behaves exactly as before. Chosen to keep the "on the road, one thing to tap" feel decision 1 (further up this doc) already established, rather than asking the owner to decide "quote or booking?" before they've even said what's needed.
+- **Always a one-hour visit, no end-time field.** Adjustable afterwards from the job page like any other visit. A novice owner dictating a note from the road shouldn't have to estimate visit length in the moment.
+- **No double-booking check.** None exists anywhere else in the app's scheduling today (confirmed by reading `jobs/actions.ts`) — this doesn't regress anything, but it also doesn't fix the pre-existing gap. Worth a separate, standalone piece of work later if it becomes a real problem, not bundled into this feature.
+**Test:** verified the underlying `Client` → `ServiceRequest` → `Job` → `Visit` → `VisitAssignment` chain directly against the dev database (schema and technician-validation logic match `addVisitAction`'s exactly) — including that an existing client is correctly matched and reused by phone number rather than duplicated. UI review confirmed on desktop; still needs a real run-through on a phone once there's more than one technician in a live tenant, to check the picker's touch targets.
+
 ## Risks
 
 - **Mobile browser mic support varies.** Must be tested on real field-worker phones (cheap Android, per the technician's-day design elsewhere in this app), not assumed from desktop testing.
@@ -72,4 +82,5 @@ GPT-4o-mini prompt to extract `clientName`, `phone`, `serviceRequired`, `urgency
 | Step 1 (recording UI, transcription plumbing) | Sonnet 5 |
 | Step 2 (AI field-extraction prompt design) | Opus 5.5 |
 | Step 3 (gating, polish) | Sonnet 5 |
+| Step 4 (book onto the calendar) | Sonnet 5 |
 | Commit and push after each step | Haiku 4.5 |

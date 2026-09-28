@@ -35,13 +35,15 @@ export default async function Home() {
   }
 
   const db = tenantDb(tenant.id);
-  const [moneyOwed, revenue, jobs, technicianCount, checklistItems] = await Promise.all([
+  const [moneyOwed, revenue, jobs, technicianRows, checklistItems] = await Promise.all([
     moneyOwedSummary(db),
     collectedRevenue(db),
     dashboardJobs(db),
-    db.membership.count({ where: { OR: [{ role: 'TECHNICIAN' }, { doesFieldwork: true }], active: true } }),
+    db.membership.findMany({ where: { OR: [{ role: 'TECHNICIAN' }, { doesFieldwork: true }], active: true }, include: { user: true }, orderBy: { createdAt: 'asc' } }),
     membership.role === 'OWNER' || membership.role === 'ADMIN' ? getOnboardingChecklist(db, tenant, user) : null,
   ]);
+  const technicianCount = technicianRows.length;
+  const technicians = technicianRows.map((t) => ({ id: t.id, name: t.user.name }));
   const activeDispatches = jobs.filter((j) => j.status === 'SCHEDULED' || j.status === 'IN_PROGRESS').length;
   const unassignedCount = jobs.filter(
     (j) => (j.status === 'DRAFT' || j.status === 'SCHEDULED') && (j.nextVisit === null || j.nextVisit.technicianNames.length === 0)
@@ -54,6 +56,7 @@ export default async function Home() {
       checklist={showChecklist ? checklistItems! : undefined}
       jobs={jobs}
       technicianCount={technicianCount}
+      technicians={technicians}
       currencyCode={tenant.currencyCode}
       finance={{ ...revenue, outstandingCents: moneyOwed.outstandingCents }}
       activeDispatches={activeDispatches}

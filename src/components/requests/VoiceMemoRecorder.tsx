@@ -3,8 +3,10 @@
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { Mic, Square } from 'lucide-react';
 import { createVoiceRequestAction, type VoiceRequestFormState } from '@/lib/requests/actions';
+import { TechnicianPicker } from '@/components/jobs/TechnicianPicker';
 
 type Stage = 'idle' | 'recording' | 'transcribing' | 'review' | 'error';
+type Technician = { id: string; name: string };
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -12,11 +14,13 @@ function formatElapsed(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-export function VoiceMemoRecorder() {
+export function VoiceMemoRecorder({ technicians = [] }: { technicians?: Technician[] }) {
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState('');
   const [seconds, setSeconds] = useState(0);
+  const [schedule, setSchedule] = useState(false);
+  const [selectedTechs, setSelectedTechs] = useState<string[]>(technicians.length === 1 ? [technicians[0].id] : []);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -30,10 +34,12 @@ export function VoiceMemoRecorder() {
       const t = setTimeout(() => {
         setStage('idle');
         setTranscript('');
+        setSchedule(false);
+        setSelectedTechs(technicians.length === 1 ? [technicians[0].id] : []);
       }, 1200);
       return () => clearTimeout(t);
     }
-  }, [state?.ok]);
+  }, [state?.ok, technicians]);
 
   async function handleStop() {
     const blob = new Blob(chunksRef.current, { type: mediaRecorderRef.current?.mimeType || 'audio/webm' });
@@ -91,6 +97,8 @@ export function VoiceMemoRecorder() {
     setStage('idle');
     setError(null);
     setTranscript('');
+    setSchedule(false);
+    setSelectedTechs(technicians.length === 1 ? [technicians[0].id] : []);
   }
 
   if (stage === 'idle') {
@@ -98,7 +106,7 @@ export function VoiceMemoRecorder() {
       <button
         type="button"
         onClick={startRecording}
-        className="mb-6 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-700 bg-slate-900 p-4 text-sm font-medium text-slate-300 hover:border-amber-400 hover:text-amber-300"
+        className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-5 py-3 text-sm font-medium text-slate-300 active:scale-95 hover:border-amber-400 hover:text-amber-300"
       >
         <Mic size={18} />
         Record a request
@@ -175,14 +183,50 @@ export function VoiceMemoRecorder() {
             />
           </label>
 
-          <label className="mb-4 block">
-            <span className="mb-1 block text-sm font-medium text-slate-300">Preferred date (optional)</span>
-            <input
-              name="preferredDate"
-              type="date"
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-amber-400 focus:outline-none"
-            />
-          </label>
+          <input type="hidden" name="technicianIdsJson" value={JSON.stringify(selectedTechs)} />
+
+          {technicians.length > 0 && (
+            <label className="mb-4 flex items-center gap-2 text-sm text-slate-300">
+              <input type="checkbox" checked={schedule} onChange={(e) => setSchedule(e.target.checked)} className="h-4 w-4 rounded" />
+              Book this straight onto the calendar
+            </label>
+          )}
+
+          {schedule ? (
+            <>
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium text-slate-300">Date</span>
+                  <input
+                    name="visitDate"
+                    type="date"
+                    required
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-amber-400 focus:outline-none"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-sm font-medium text-slate-300">Start time</span>
+                  <input
+                    name="visitStartTime"
+                    type="time"
+                    required
+                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-amber-400 focus:outline-none"
+                  />
+                </label>
+              </div>
+              {technicians.length > 1 && <TechnicianPicker technicians={technicians} selected={selectedTechs} onChange={setSelectedTechs} />}
+              <p className="mb-4 text-xs text-slate-500">Creates a one-hour visit — adjust the length or details afterwards on the job.</p>
+            </>
+          ) : (
+            <label className="mb-4 block">
+              <span className="mb-1 block text-sm font-medium text-slate-300">Preferred date (optional)</span>
+              <input
+                name="preferredDate"
+                type="date"
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-amber-400 focus:outline-none"
+              />
+            </label>
+          )}
 
           <div className="flex gap-2">
             <button
@@ -190,7 +234,7 @@ export function VoiceMemoRecorder() {
               disabled={pending}
               className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-60"
             >
-              {pending ? 'Saving…' : 'Save request'}
+              {pending ? 'Saving…' : schedule ? 'Book appointment' : 'Save request'}
             </button>
             <button type="button" onClick={discard} className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700">
               Discard
