@@ -5,7 +5,7 @@ import { tenantDb } from '@/lib/db';
 import { moneyOwedSummary } from '@/lib/invoices/overdue';
 import { dashboardJobs, collectedRevenue } from '@/lib/jobs/dashboard';
 import { getOnboardingChecklist, isChecklistComplete } from '@/lib/onboarding/checklist';
-import { trialHasLapsed } from '@/lib/plans/plans';
+import { trialHasLapsed, canUse } from '@/lib/plans/plans';
 import { AppShell } from '@/components/AppShell';
 import { TechnicianDay } from '@/components/technician/TechnicianDay';
 
@@ -57,6 +57,7 @@ export default async function Home() {
       jobs={jobs}
       technicianCount={technicianCount}
       technicians={technicians}
+      voiceMemoAllowed={canUse(tenant, 'voiceMemoCapture')}
       currencyCode={tenant.currencyCode}
       finance={{ ...revenue, outstandingCents: moneyOwed.outstandingCents }}
       activeDispatches={activeDispatches}

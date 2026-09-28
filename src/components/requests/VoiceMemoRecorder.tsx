@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { Mic, Square } from 'lucide-react';
 import { createVoiceRequestAction, type VoiceRequestFormState } from '@/lib/requests/actions';
 import { TechnicianPicker } from '@/components/jobs/TechnicianPicker';
@@ -32,7 +33,7 @@ function Unsure({ show }: { show: boolean }) {
   return show ? <span className="mt-1 block text-xs text-amber-400">Check this — it may have been misheard</span> : null;
 }
 
-export function VoiceMemoRecorder({ technicians = [] }: { technicians?: Technician[] }) {
+export function VoiceMemoRecorder({ technicians = [], allowed = true }: { technicians?: Technician[]; allowed?: boolean }) {
   const [stage, setStage] = useState<Stage>('idle');
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState('');
@@ -75,10 +76,18 @@ export function VoiceMemoRecorder({ technicians = [] }: { technicians?: Technici
     const body = new FormData();
     body.append('audio', blob);
 
+    let res: Response;
     try {
-      const res = await fetch('/api/voice-requests/transcribe', { method: 'POST', body });
+      res = await fetch('/api/voice-requests/transcribe', { method: 'POST', body });
+    } catch {
+      setError('Could not reach the server. Check your connection and try again.');
+      setStage('error');
+      return;
+    }
+
+    try {
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Transcription failed.');
+      if (!res.ok) throw new Error(data.error || 'Transcription failed. Please try again.');
       setTranscript(data.transcript);
       setDraft(data.draft ?? null);
       setMatchedClient(data.matchedClient ?? null);
@@ -126,16 +135,32 @@ export function VoiceMemoRecorder({ technicians = [] }: { technicians?: Technici
     setStage('transcribing');
   }
 
-  if (stage === 'idle') {
+  if (!allowed) {
     return (
-      <button
-        type="button"
-        onClick={startRecording}
-        className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-5 py-3 text-sm font-medium text-slate-300 active:scale-95 hover:border-amber-400 hover:text-amber-300"
+      <Link
+        href="/settings/package"
+        className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900 px-5 py-3 text-sm font-medium text-slate-500 hover:border-amber-400 hover:text-amber-300"
       >
         <Mic size={18} />
         Record a request
-      </button>
+        <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-amber-300">Growth</span>
+      </Link>
+    );
+  }
+
+  if (stage === 'idle') {
+    return (
+      <div className="mb-6">
+        <button
+          type="button"
+          onClick={startRecording}
+          className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-5 py-3 text-sm font-medium text-slate-300 active:scale-95 hover:border-amber-400 hover:text-amber-300"
+        >
+          <Mic size={18} />
+          Record a request
+        </button>
+        <p className="mt-1.5 text-xs text-slate-500">Your recording is transcribed and then deleted — only the text is kept.</p>
+      </div>
     );
   }
 

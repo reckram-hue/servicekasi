@@ -1,10 +1,12 @@
 import Link from 'next/link';
+import { Mic } from 'lucide-react';
 import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
 import { formatDateStr, localDateStr } from '@/lib/dates';
 import { openServiceRequests } from '@/lib/requests/queries';
 import { dismissRequestAction, addRequestAsClientAction } from '@/lib/requests/actions';
 import { VoiceMemoRecorder } from '@/components/requests/VoiceMemoRecorder';
+import { canUse } from '@/lib/plans/plans';
 
 const SOURCE_LABEL: Record<string, string> = {
   MANUAL: 'Added by hand',
@@ -36,7 +38,7 @@ export default async function RequestsPage() {
           and anywhere else you&rsquo;ve added one.
         </p>
 
-        <VoiceMemoRecorder technicians={technicians} />
+        <VoiceMemoRecorder technicians={technicians} allowed={canUse(tenant, 'voiceMemoCapture')} />
 
         {requests.length === 0 ? (
           <p className="rounded-xl border border-dashed border-slate-800 p-10 text-center text-slate-500">Nothing new right now.</p>
@@ -46,9 +48,17 @@ export default async function RequestsPage() {
               <div key={r.id} className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
                 <div className="mb-2 flex items-start justify-between gap-3">
                   <div>
-                    <div className="font-medium text-slate-100">{r.contactName || 'No name given'}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-slate-100">{r.contactName || 'No name given'}</span>
+                      {r.source === 'VOICE_MEMO' && (
+                        <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                          <Mic size={10} /> VOICE MEMO
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-slate-500">
-                      {r.contactPhone} · {SOURCE_LABEL[r.source] ?? r.source} · {formatDateStr(localDateStr(r.createdAt, 'UTC'))} at {new Date(r.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {r.contactPhone} · {SOURCE_LABEL[r.source] ?? r.source} · {formatDateStr(localDateStr(r.createdAt, 'UTC'))} at{' '}
+                      {new Date(r.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       {r.preferredDate && ` · wants ${formatDateStr(localDateStr(r.preferredDate, 'UTC'))}`}
                     </div>
                   </div>

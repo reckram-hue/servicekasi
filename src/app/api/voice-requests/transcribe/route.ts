@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
+import { canUse } from '@/lib/plans/plans';
 import { transcribeAudio, TranscriptionError } from '@/lib/ai/whisper';
 import { extractRequestDraft } from '@/lib/ai/extractRequest';
 
@@ -12,6 +13,9 @@ import { extractRequestDraft } from '@/lib/ai/extractRequest';
  */
 export async function POST(request: NextRequest) {
   const { tenant } = await requireRole();
+  if (!canUse(tenant, 'voiceMemoCapture')) {
+    return NextResponse.json({ error: 'Voice memo capture needs the Growth package.' }, { status: 403 });
+  }
 
   const form = await request.formData();
   const file = form.get('audio');

@@ -12,6 +12,7 @@ type AppShellProps = {
   jobs: DashboardJob[];
   technicianCount: number;
   technicians: { id: string; name: string }[];
+  voiceMemoAllowed: boolean;
   currencyCode: string;
   finance: { collectedCents: number; collectedVatCents: number; outstandingCents: number };
   activeDispatches: number;
@@ -19,12 +20,23 @@ type AppShellProps = {
 };
 
 /** The dashboard's own content — the sidebar and page chrome around it live in the shared (app) layout. */
-export function AppShell({ moneyOwed, checklist, jobs, technicianCount, technicians, currencyCode, finance, activeDispatches, unassignedCount }: AppShellProps) {
+export function AppShell({
+  moneyOwed,
+  checklist,
+  jobs,
+  technicianCount,
+  technicians,
+  voiceMemoAllowed,
+  currencyCode,
+  finance,
+  activeDispatches,
+  unassignedCount,
+}: AppShellProps) {
   return (
     <div className="p-6">
       {checklist && <GettingStartedCard items={checklist} />}
       <div className="mb-6">
-        <VoiceMemoRecorder technicians={technicians} />
+        <VoiceMemoRecorder technicians={technicians} allowed={voiceMemoAllowed} />
       </div>
       {moneyOwed && (
         <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">

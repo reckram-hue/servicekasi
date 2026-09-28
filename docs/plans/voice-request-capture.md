@@ -1,6 +1,6 @@
 # Voice memo → draft request — plan
 
-Status: proposed 2026-09-28 [Sonnet 5], replacing an earlier "inbound WhatsApp voice-note webhook" idea that turned out to need the WhatsApp Business API (a new registered number, Meta verification) — a much bigger and riskier change than the actual problem needed. Steps 1, 2 and 4 built 2026-09-28. Step 3 (gating, polish) not started.
+Status: proposed 2026-09-28 [Sonnet 5], replacing an earlier "inbound WhatsApp voice-note webhook" idea that turned out to need the WhatsApp Business API (a new registered number, Meta verification) — a much bigger and riskier change than the actual problem needed. Steps 1, 2, 3 and 4 built 2026-09-28. All planned steps done; still needs a real-phone test (see Step 2's notes) before beta rollout.
 
 ## The problem
 
@@ -64,9 +64,11 @@ Also fixed in this step: iPhone recordings are `audio/mp4` but were uploaded as 
 
 **Still to verify on a real phone:** actual speech → Whisper accuracy with SA accents and road noise, and an iPhone recording end to end. The UI was tested with a simulated microphone and a real extraction result; saving was deliberately not tested because local dev now writes to the live Neon database.
 
-### Step 3 — Polish and gating  [Sonnet 5]
-`RequestSource.VOICE_MEMO` badge in the requests list, the Growth-tier gate via `canUse`, the "transcribed then deleted" notice, and a friendly failure message if transcription fails (bad connection, silence, background noise) rather than a raw error.
-**Test:** a Free Solo tenant sees the upgrade prompt instead of the record button; a failed transcription shows a clear retry message.
+### Step 3 — Polish and gating  [Sonnet 5] ✅ done
+New `voiceMemoCapture` feature flag (Growth tier, alongside the other pay-per-use features) in `lib/plans/plans.ts`, enforced in three places: the record button itself (shows a locked pill with a "Growth" badge, linking to Settings → Package, for anyone below Growth), the transcribe route, and the save action — so it can't be reached by editing the page or replaying the form. A small "VOICE MEMO" badge (mic icon) now sits next to the client's name in the requests list, distinct from the plain source label already there. The "transcribed then deleted" line now sits permanently under the record button, not just mentioned once. Network failures during upload (phone drops signal mid-recording) now get their own message ("Could not reach the server...") instead of a raw browser error.
+
+**Bug found and fixed while testing the locked state:** the upgrade badge was a link nested inside the record button's own link — invalid HTML that Next.js flagged as a hydration error in the console (the page still worked, but the warning was real). Replaced with a plain span; the whole button is already one clickable link to Settings → Package.
+**Test:** rendered the component directly with the feature flag off — confirmed the locked pill, badge and link, no console errors. Confirmed the flag switches the real `/requests` and dashboard views off/on. Did not flip the live tenant's plan to test end-to-end, since local dev and Vercel now share one Neon database (see `[[database-neon-live]]` in memory).
 
 ### Step 4 — Book straight onto the calendar  [Sonnet 5] ✅ done
 Added after real usage exposed a gap: the owner's actual scenario is "Dennis phones asking for a quote visit Friday at 10" — recording a memo and then still having to separately open Jobs, create a job, and add a visit was one step too many. The review form (in `VoiceMemoRecorder.tsx`) now has a "Book this straight onto the calendar" checkbox. Off (default): unchanged, saves a lead exactly as Step 1 did. On: shows a date + start time and, only if there's more than one active technician, a picker to choose who it's for (with exactly one technician, it's auto-assigned with no picker shown — matches a one-person or small-crew business where asking "who?" would be a pointless extra tap). Submitting then creates a real `Client` (matched by phone if one already exists, so a repeat caller doesn't get duplicated), a `ServiceRequest` marked `CONVERTED`, a `Job`, and a one-hour `Visit` with that technician assigned — reusing the exact same `Job`/`Visit`/`VisitAssignment` models and technician-validation logic the normal "New job" → "Add visit" flow already uses, not a parallel path.

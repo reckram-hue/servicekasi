@@ -10,6 +10,7 @@ import { createClient } from '@/lib/clients/create';
 import { normalizeSaPhone } from '@/lib/southAfrica';
 import { zonedDateTime } from '@/lib/dates';
 import { syncJobStatus } from '@/lib/jobs/status';
+import { canUse } from '@/lib/plans/plans';
 
 export type VoiceRequestFormState = { error?: string; ok?: boolean } | undefined;
 
@@ -26,6 +27,7 @@ const PRIORITIES: JobPriority[] = ['LOW', 'NORMAL', 'HIGH', 'EMERGENCY'];
  */
 export async function createVoiceRequestAction(_: VoiceRequestFormState, formData: FormData): Promise<VoiceRequestFormState> {
   const { tenant } = await requireRole();
+  if (!canUse(tenant, 'voiceMemoCapture')) return { error: 'Voice memo capture needs the Growth package.' };
   const db = tenantDb(tenant.id);
 
   const contactName = String(formData.get('contactName') ?? '').trim();
