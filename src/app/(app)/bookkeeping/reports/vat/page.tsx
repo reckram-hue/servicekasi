@@ -25,7 +25,7 @@ export default async function VatSummaryPage({ searchParams }: { searchParams: P
         </Link>
         <h1 className="mt-2 mb-6 text-2xl font-bold">VAT summary</h1>
 
-        <PeriodNav basePath="/bookkeeping/reports/vat" period={period} timeZone={tenant.timezone} />
+        <PeriodNav basePath="/bookkeeping/reports/vat" period={period} timeZone={tenant.timezone} allowBimonth />
 
         <div className="mb-6 rounded-2xl border border-slate-800 bg-slate-900">
           <div className="flex items-center justify-between border-b border-slate-800 p-4">
