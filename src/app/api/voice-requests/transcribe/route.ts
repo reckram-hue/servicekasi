@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/auth/session';
+import { tenantDb } from '@/lib/db';
 import { transcribeAudio, TranscriptionError } from '@/lib/ai/whisper';
+import { extractRequestDraft } from '@/lib/ai/extractRequest';
 
 /**
- * Receives a recorded voice memo, transcribes it, and returns the text —
- * nothing is saved here. The caller (VoiceMemoRecorder) shows the transcript
- * in an editable review form; only submitting that form creates a
- * ServiceRequest, and even then the audio itself was never persisted.
+ * Receives a recorded voice memo, transcribes it, and drafts the request
+ * fields from it — nothing is saved here. The caller (VoiceMemoRecorder)
+ * shows the draft in an editable review form; only submitting that form
+ * creates anything, and the audio itself is never persisted.
  */
 export async function POST(request: NextRequest) {
-  await requireRole();
+  const { tenant } = await requireRole();
 
   const form = await request.formData();
   const file = form.get('audio');
@@ -19,11 +21,21 @@ export async function POST(request: NextRequest) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
 
+  let transcript: string;
   try {
-    const transcript = await transcribeAudio(buffer, 'memo.webm', file.type || 'audio/webm');
-    return NextResponse.json({ transcript });
+    transcript = await transcribeAudio(buffer, file.type || 'audio/webm');
   } catch (err) {
     const message = err instanceof TranscriptionError ? err.message : 'Something went wrong transcribing that recording.';
     return NextResponse.json({ error: message }, { status: 502 });
   }
+
+  const draft = await extractRequestDraft(transcript, tenant.timezone);
+
+  let matchedClient: string | null = null;
+  if (draft?.phone?.startsWith('+27')) {
+    const client = await tenantDb(tenant.id).client.findFirst({ where: { phone: draft.phone }, select: { firstName: true, lastName: true } });
+    if (client) matchedClient = [client.firstName, client.lastName].filter(Boolean).join(' ');
+  }
+
+  return NextResponse.json({ transcript, draft, matchedClient });
 }

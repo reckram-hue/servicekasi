@@ -1,6 +1,6 @@
 # Voice memo → draft request — plan
 
-Status: proposed 2026-09-28 [Sonnet 5], replacing an earlier "inbound WhatsApp voice-note webhook" idea that turned out to need the WhatsApp Business API (a new registered number, Meta verification) — a much bigger and riskier change than the actual problem needed. Step 1 built and tested 2026-09-28 [Sonnet 5]. Steps 2–3 not started.
+Status: proposed 2026-09-28 [Sonnet 5], replacing an earlier "inbound WhatsApp voice-note webhook" idea that turned out to need the WhatsApp Business API (a new registered number, Meta verification) — a much bigger and riskier change than the actual problem needed. Steps 1, 2 and 4 built 2026-09-28. Step 3 (gating, polish) not started.
 
 ## The problem
 
@@ -51,9 +51,18 @@ Whisper is priced per minute of audio; GPT-4o-mini's structured extraction is a 
 Mic-record UI (`MediaRecorder`) on `/requests`, a `/api/voice-requests/transcribe` route handler that calls Whisper and returns the transcript (audio is never written anywhere — it's read into memory, sent to OpenAI, and discarded), and an editable review form (client name, phone, description pre-filled with the transcript, preferred date) that creates a `ServiceRequest` with `source: VOICE_MEMO` and the original wording kept in a new `transcript` field. There was no existing "New request" form to reuse — this is the first manually-created request path, alongside the public booking page and Google Business leads.
 **Tested:** the record button, mic-permission failure, and the "transcription isn't set up yet" error (no `OPENAI_API_KEY` in dev) all render their intended messages. Created a request the same shape the review form would produce and confirmed it shows "Voice memo" as the source, the edited description, and an "Originally said: ..." line with the raw transcript underneath — then converted it to a client through the existing "Add as client" flow with no changes needed there. Real on-device recording (actual `MediaRecorder` audio + a live `OPENAI_API_KEY`) still needs testing on a real phone before this goes to beta users — the automated browser here has no microphone and no API key configured.
 
-### Step 2 — Structured field extraction  [Opus 5.5]
-GPT-4o-mini prompt to extract `clientName`, `phone`, `serviceRequired`, `urgency`, `requestedTime` as strict typed JSON (zod-validated — never trust the model's output shape blindly), pre-filling the review form instead of just the description. Opus for this one: it's the first LLM-extraction feature in the app, prompt quality directly decides whether this is useful or annoying, and South African names/slang/addresses are exactly the kind of edge case worth getting right before shipping.
-**Test:** a handful of real-sounding sample notes (a burst geyser, a vague "my geyser is making a noise," one with no name given) each produce sensible, correctly-flagged-as-uncertain fields rather than confidently wrong ones.
+### Step 2 — Structured field extraction  [Opus 5.5] ✅ done
+`src/lib/ai/extractRequest.ts`: after Whisper, GPT-4o-mini (temperature 0, strict JSON-schema output, then zod-validated and value-checked in code) drafts client name, phone, job, location, date, time, timing notes, contact notes and urgency. The review form is pre-filled from it; fields the model had to guess are outlined in amber with "Check this — it may have been misheard"; a phone that matches an existing client says so; urgent/emergency memos get a red banner; urgency carries through to the job's priority when booked; booking is pre-ticked only when both a day *and* a time were said. The raw transcript stays one tap away ("What you said") and is still stored as before. Extraction is best-effort — any failure falls back to Step 1's behaviour (transcript in the description), never an error.
+
+**What testing changed** (7 SA-style sample memos run against the real model, including a partial phone number, an Afrikaans mix, a nameless "lady at Sunset Villas", an ambiguous "next Tuesday", and a note-to-self):
+- **Dates are looked up, never calculated.** The first version asked the model to work out "next Tuesday" and it confidently returned a Sunday. The message now includes a labelled 3-week calendar ("Tue 2026-09-29 (tomorrow, this week)") and the model copies from it; code rejects any date outside that calendar.
+- **Address, vague timing and contact details get their own schema fields** (`location`, `timingNotes`, `contactNotes`) and the description is assembled from them in code. As prose instructions they kept getting dropped ("tomorrow morning", "she's on WhatsApp", the unit number).
+- **"Next <weekday>" ambiguity is flagged in code**, not left to the model: if that weekday also still comes this week, the date is marked uncertain.
+- Name rules tightened: Afrikaans titles translated (Meneer → Mr), no invented name from a description, and a name mentioned in passing ("before the Naidoo job") isn't treated as the client.
+
+Also fixed in this step: iPhone recordings are `audio/mp4` but were uploaded as `memo.webm` — Whisper detects format from the extension, so they'd likely have failed. The extension now follows the recording's real type. Whisper also now gets a short SA vocabulary hint (geyser, DB board, JoJo tank, common place names and surnames).
+
+**Still to verify on a real phone:** actual speech → Whisper accuracy with SA accents and road noise, and an iPhone recording end to end. The UI was tested with a simulated microphone and a real extraction result; saving was deliberately not tested because local dev now writes to the live Neon database.
 
 ### Step 3 — Polish and gating  [Sonnet 5]
 `RequestSource.VOICE_MEMO` badge in the requests list, the Growth-tier gate via `canUse`, the "transcribed then deleted" notice, and a friendly failure message if transcription fails (bad connection, silence, background noise) rather than a raw error.

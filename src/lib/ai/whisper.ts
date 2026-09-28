@@ -15,16 +15,34 @@ const MAX_AUDIO_BYTES = 20 * 1024 * 1024; // Whisper's own limit is 25MB; leave 
 
 export class TranscriptionError extends Error {}
 
-export async function transcribeAudio(buffer: Buffer, filename: string, mimeType: string): Promise<string> {
+// Whisper detects the audio format from the file extension, and phones differ:
+// Android Chrome records webm, iPhone Safari records mp4.
+function extensionFor(mimeType: string): string {
+  const type = mimeType.split(';')[0].trim();
+  if (type === 'audio/mp4' || type === 'video/mp4') return 'mp4';
+  if (type === 'audio/ogg') return 'ogg';
+  if (type === 'audio/mpeg') return 'mp3';
+  if (type === 'audio/wav' || type === 'audio/x-wav') return 'wav';
+  return 'webm';
+}
+
+// A spelling hint, not an instruction: nudges Whisper toward words it would otherwise mishear.
+const VOCABULARY_HINT =
+  'Geyser, DB board, pre-paid meter, earth leakage, load-shedding, inverter, gate motor, borehole, JoJo tank, burglar bars. ' +
+  'Soweto, Vilakazi Street, Umhlanga, Khayelitsha, Tembisa, Mitchells Plain, Centurion, Sandton. ' +
+  'Thabo, Sipho, Nomsa, Naidoo, Van der Merwe, Botha, Dlamini.';
+
+export async function transcribeAudio(buffer: Buffer, mimeType: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new TranscriptionError('Voice transcription isn’t set up yet.');
   if (buffer.byteLength === 0) throw new TranscriptionError('That recording was empty.');
   if (buffer.byteLength > MAX_AUDIO_BYTES) throw new TranscriptionError('That recording is too long — keep it under a couple of minutes.');
 
   const form = new FormData();
-  form.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), filename);
+  form.append('file', new Blob([new Uint8Array(buffer)], { type: mimeType }), `memo.${extensionFor(mimeType)}`);
   form.append('model', 'whisper-1');
   form.append('response_format', 'json');
+  form.append('prompt', VOCABULARY_HINT);
 
   let res: Response;
   try {

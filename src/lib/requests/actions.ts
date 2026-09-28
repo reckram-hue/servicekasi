@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import type { JobPriority } from '@prisma/client';
 import { requireRole } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
 import { tenantDb, nextDocumentNumber } from '@/lib/db';
@@ -16,6 +17,7 @@ const NAME_MAX = 100;
 const DESCRIPTION_MAX = 2000;
 const VISIT_TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DEFAULT_VISIT_MINUTES = 60;
+const PRIORITIES: JobPriority[] = ['LOW', 'NORMAL', 'HIGH', 'EMERGENCY'];
 
 /**
  * Creates a request from a voice memo's (owner-reviewed) transcript. The audio itself was
@@ -34,6 +36,8 @@ export async function createVoiceRequestAction(_: VoiceRequestFormState, formDat
   const visitDate = String(formData.get('visitDate') ?? '').trim();
   const visitStartTime = String(formData.get('visitStartTime') ?? '').trim();
   const technicianIdsJson = String(formData.get('technicianIdsJson') ?? '[]');
+  const priorityRaw = String(formData.get('priority') ?? 'NORMAL');
+  const priority = PRIORITIES.includes(priorityRaw as JobPriority) ? (priorityRaw as JobPriority) : 'NORMAL';
 
   if (contactName.length > NAME_MAX) return { error: `Please keep the name under ${NAME_MAX} characters.` };
   if (!description || description.length < 3) return { error: 'Add a bit more detail before saving.' };
@@ -96,6 +100,7 @@ export async function createVoiceRequestAction(_: VoiceRequestFormState, formDat
           requestId: request.id,
           title: description.slice(0, 100),
           description,
+          priority,
         },
       });
       await tx.visit.create({
