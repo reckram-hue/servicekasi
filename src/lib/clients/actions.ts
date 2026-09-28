@@ -3,78 +3,12 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { tenantDb, type TenantDb } from '@/lib/db';
+import { tenantDb } from '@/lib/db';
 import { requireRole } from '@/lib/auth/session';
-import { normalizeSaPhone } from '@/lib/southAfrica';
-import type { Tenant } from '@prisma/client';
+import { ClientSchema } from './schema';
+import { createClient, normalizePhone } from './create';
 
 export type FormState = { error?: string; fieldErrors?: Record<string, string[] | undefined>; ok?: string } | undefined;
-
-const LANGUAGES = ['en', 'af', 'zu', 'xh', 'st', 'tn', 'nso', 'ts', 'ss', 've', 'nr', 'pt', 'sn', 'ny', 'sw', 'fr'] as const;
-
-const ClientSchema = z
-  .object({
-    firstName: z.string().trim().min(1, { error: 'Enter a first name.' }),
-    lastName: z.string().trim().optional(),
-    companyName: z.string().trim().optional(),
-    phone: z.string().trim().optional(),
-    email: z.union([z.email({ error: 'Enter a valid email address.' }), z.literal('')]).optional(),
-    preferredLanguage: z.enum(LANGUAGES).default('en'),
-    notes: z.string().trim().optional(),
-    whatsappOptIn: z.union([z.literal('on'), z.literal('')]).optional(),
-    street: z.string().trim().optional(),
-    suburb: z.string().trim().optional(),
-    city: z.string().trim().optional(),
-    region: z.string().trim().optional(),
-    postalCode: z.string().trim().optional(),
-    accessNotes: z.string().trim().optional(),
-  })
-  .refine((d) => d.phone || d.email, {
-    error: 'Enter a phone number or an email address.',
-    path: ['phone'],
-  });
-
-function normalizePhone(raw?: string): string | undefined {
-  if (!raw) return undefined;
-  const normalized = normalizeSaPhone(raw);
-  return normalized;
-}
-
-/** True once enough of the address has been filled in to be worth saving. */
-function hasAddress(d: { street?: string; city?: string }) {
-  return !!(d.street && d.city);
-}
-
-async function createClient(db: TenantDb, tenant: Pick<Tenant, 'id' | 'countryCode'>, d: z.infer<typeof ClientSchema>) {
-  return db.client.create({
-    data: {
-      tenantId: tenant.id, // tenantDb also injects this; kept explicit to satisfy TypeScript
-      firstName: d.firstName,
-      lastName: d.lastName || undefined,
-      companyName: d.companyName || undefined,
-      phone: normalizePhone(d.phone),
-      email: d.email || undefined,
-      preferredLanguage: d.preferredLanguage,
-      notes: d.notes || undefined,
-      whatsappOptIn: d.whatsappOptIn === 'on',
-      consentRecordedAt: d.whatsappOptIn === 'on' ? new Date() : undefined,
-      properties: hasAddress(d)
-        ? {
-            create: {
-              tenantId: tenant.id,
-              street: d.street!,
-              suburb: d.suburb || undefined,
-              city: d.city!,
-              region: d.region || undefined,
-              postalCode: d.postalCode || undefined,
-              countryCode: tenant.countryCode,
-              accessNotes: d.accessNotes || undefined,
-            },
-          }
-        : undefined,
-    },
-  });
-}
 
 export async function createClientAction(_: FormState, formData: FormData): Promise<FormState> {
   const { tenant } = await requireRole();

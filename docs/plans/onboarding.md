@@ -1,6 +1,6 @@
 # Plan: First-day setup (Phase 4)
 
-Status: Steps 1, 2, 3 and 4 done. Written 2026-09-27.
+Status: Steps 1, 2, 3 and 4 done. CSV client import (from "Later" below) done 2026-09-28. Written 2026-09-27.
 
 Goal: a new business signs up and sends its first quote or invoice in under
 15 minutes, without reading a manual. Every step ends with something testable
@@ -65,8 +65,22 @@ landscaping starter items too and confirm nothing is doubled.
 - A reminder bar shows on every page until it's switched on.
 - Connecting online payments still requires it (those settings move money).
 
+### CSV client import  [Sonnet 5] ✅ done
+- `/clients/import`: download a template CSV, choose a file, see a live
+  preview (valid rows ready to import, invalid ones skipped with a reason)
+  before anything is sent to the server.
+- Each row goes through the exact same validation and creation code as the
+  single "Add client" form (`src/lib/clients/schema.ts`, `create.ts`), so an
+  imported client is indistinguishable from a hand-typed one — including
+  getting a Property row when a street and city are given.
+- A row matching an existing client's phone or email is skipped, not
+  duplicated, so re-running the same file (or an updated export) is safe.
+- A 500-row cap per file; anything larger asks the user to split it.
+**Tested:** a 3-row file with a bad row (no phone/email) correctly imported
+2 and skipped 1; re-importing the same file skipped both as duplicates; a
+file with the wrong columns was rejected before anything was sent.
+
 ## Later
-- CSV client import.
 - Google Business Profile: a public "Request a quote" page per business
   (`/book/<slug>`, the slug already exists) to paste into the profile's
   booking/website link. Google shut down in-profile messaging in 2024, so a

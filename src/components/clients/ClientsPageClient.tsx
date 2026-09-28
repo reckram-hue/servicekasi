@@ -162,7 +162,15 @@ export function ClientsPageClient({ clients, query }: { clients: ClientRow[]; qu
     <div>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <SearchBar initialQuery={query} />
-        <AddClientButton />
+        <div className="flex gap-2">
+          <Link
+            href="/clients/import"
+            className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:border-slate-500"
+          >
+            Import from CSV
+          </Link>
+          <AddClientButton />
+        </div>
       </div>
 
       {clients.length === 0 ? (
