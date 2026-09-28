@@ -1,6 +1,6 @@
 # Plan: First-day setup (Phase 4)
 
-Status: Steps 1, 2, 3 and 4 done. CSV client import (from "Later" below) done 2026-09-28. Written 2026-09-27.
+Status: Steps 1, 2, 3 and 4 done. CSV client import and the Google Business Profile booking page (from "Later" below) done 2026-09-28. Written 2026-09-27.
 
 Goal: a new business signs up and sends its first quote or invoice in under
 15 minutes, without reading a manual. Every step ends with something testable
@@ -80,10 +80,39 @@ landscaping starter items too and confirm nothing is doubled.
 2 and skipped 1; re-importing the same file skipped both as duplicates; a
 file with the wrong columns was rejected before anything was sent.
 
+### Google Business Profile booking page  [Sonnet 5] ✅ done
+- `/book/<slug>`: a public, unauthenticated "Request a quote" page — name,
+  phone, what's needed, an optional preferred date. No login, no client
+  record needed to submit. Meant to be pasted into a Google Business
+  Profile's booking/website link (Google shut down in-profile messaging in
+  2024, so a link is the realistic route) — deliberately left indexable,
+  unlike the app's token-gated public pages (`/q/<token>`, `/i/<token>`),
+  since this one's the point of being found.
+- Settings → Business shows the link with a one-tap copy button, and a
+  reminder that new requests land under **Requests** in the sidebar.
+- New sidebar page `/requests` (owner/office only) lists every open lead:
+  who, their number, what they need, when they'd like it done, and where
+  it came from (`ServiceRequest.source`). "Add as client" turns it into a
+  real `Client` — reusing the exact same `createClient` the CSV import and
+  the "Add client" form both use — using their given name (split on the
+  first space into first/last) and phone, then jumps straight to that
+  client's row so "New quote"/"New job" are one click away, no retyping.
+  "Dismiss" clears a lead that's going nowhere. Either way it leaves
+  `ServiceRequest`; nothing is deleted.
+- Spam protection: since a booking slug is a stable, publicly-advertised
+  value (unlike a quote/invoice's unguessable per-document token, the only
+  "protection" anywhere else in the app), a hidden honeypot field quietly
+  no-ops a bot's submission — it sees a normal success message but no
+  `ServiceRequest` is created. No IP throttling or CAPTCHA yet; revisit if
+  beta shows real spam volume, consistent with the rest of the app
+  currently shipping with zero bot protection beyond token secrecy.
+**Tested:** submitted a real request through the public page and watched
+it land in `/requests`; "Add as client" created the client correctly
+(phone normalized, notes carried over) and redirected straight to it;
+"Dismiss" cleared a lead without creating anything; filling the honeypot
+field showed the visitor a normal success message while creating no row;
+an unknown slug 404s.
+
 ## Later
-- Google Business Profile: a public "Request a quote" page per business
-  (`/book/<slug>`, the slug already exists) to paste into the profile's
-  booking/website link. Google shut down in-profile messaging in 2024, so a
-  link is the realistic route.
 - Review requests: after a job is paid, a WhatsApp message with the
   business's Google review link.

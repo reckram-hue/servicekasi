@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Package,
   Wallet,
+  Inbox,
   ChevronLeft,
   ChevronRight,
   PanelLeftClose,
@@ -52,6 +53,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, group: 'Operations' },
   { href: '/getting-started', label: 'Getting started', icon: Rocket, group: 'Operations' },
+  { href: '/requests', label: 'Requests', icon: Inbox, group: 'Operations' },
   { href: '/my-day', label: 'My day', icon: Wrench, group: 'Operations' },
   { href: '/schedule', label: 'Schedule', icon: Calendar, group: 'Operations' },
   { href: '/jobs', label: 'Jobs', icon: Briefcase, group: 'Operations' },
