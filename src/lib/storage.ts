@@ -1,5 +1,5 @@
 import 'server-only';
-import { mkdir, unlink, writeFile } from 'fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
@@ -53,6 +53,14 @@ export async function uploadPublicFile(tenantId: string, buffer: Buffer, content
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, path.basename(key)), buffer);
   return `/uploads/${key}`;
+}
+
+/** Reads back an already-uploaded file's bytes — for bundling slip photos into the accountant export. */
+export async function readPublicFile(url: string): Promise<Buffer> {
+  if (url.startsWith('/uploads/')) return readFile(path.join(process.cwd(), 'public', url));
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Could not fetch ${url}`);
+  return Buffer.from(await res.arrayBuffer());
 }
 
 /** Best-effort delete; never throws (a missing file or storage hiccup shouldn't block removing the database record). */

@@ -74,6 +74,14 @@ export default async function ReportsPage() {
             unlocked={canUse(tenant, 'debtorsAged')}
             feature="debtorsAged"
           />
+
+          <ReportLink
+            href="/bookkeeping/reports/export"
+            title="Accountant export"
+            hint="Journal CSV and slip photos, ready to hand over"
+            unlocked={canUse(tenant, 'accountantExport')}
+            feature="accountantExport"
+          />
         </div>
       </div>
     </div>
