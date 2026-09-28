@@ -1,6 +1,6 @@
 # Voice memo → draft request — plan
 
-Status: proposed 2026-09-28 [Sonnet 5], replacing an earlier "inbound WhatsApp voice-note webhook" idea that turned out to need the WhatsApp Business API (a new registered number, Meta verification) — a much bigger and riskier change than the actual problem needed. Nothing built yet.
+Status: proposed 2026-09-28 [Sonnet 5], replacing an earlier "inbound WhatsApp voice-note webhook" idea that turned out to need the WhatsApp Business API (a new registered number, Meta verification) — a much bigger and riskier change than the actual problem needed. Step 1 built and tested 2026-09-28 [Sonnet 5]. Steps 2–3 not started.
 
 ## The problem
 
@@ -47,9 +47,9 @@ Whisper is priced per minute of audio; GPT-4o-mini's structured extraction is a 
 
 ## Steps
 
-### Step 1 — Recording, transcription, and a plain review form  [Sonnet 5]
-Mic-record UI (`MediaRecorder`, needs a permission prompt — test on an actual Android phone, not just desktop Chrome, since codec support varies). A route handler receives the audio, calls Whisper, and returns the transcript. No AI field-extraction yet — the transcript is just dropped into the existing "New request" form's description field for the owner to read and fill in themselves. Proves the audio pipeline end to end before adding parsing risk on top.
-**Test:** record a short note on a phone, confirm the transcript appears and is reasonably accurate; confirm no audio file exists anywhere after the request completes.
+### Step 1 — Recording, transcription, and a plain review form  [Sonnet 5] ✅ done
+Mic-record UI (`MediaRecorder`) on `/requests`, a `/api/voice-requests/transcribe` route handler that calls Whisper and returns the transcript (audio is never written anywhere — it's read into memory, sent to OpenAI, and discarded), and an editable review form (client name, phone, description pre-filled with the transcript, preferred date) that creates a `ServiceRequest` with `source: VOICE_MEMO` and the original wording kept in a new `transcript` field. There was no existing "New request" form to reuse — this is the first manually-created request path, alongside the public booking page and Google Business leads.
+**Tested:** the record button, mic-permission failure, and the "transcription isn't set up yet" error (no `OPENAI_API_KEY` in dev) all render their intended messages. Created a request the same shape the review form would produce and confirmed it shows "Voice memo" as the source, the edited description, and an "Originally said: ..." line with the raw transcript underneath — then converted it to a client through the existing "Add as client" flow with no changes needed there. Real on-device recording (actual `MediaRecorder` audio + a live `OPENAI_API_KEY`) still needs testing on a real phone before this goes to beta users — the automated browser here has no microphone and no API key configured.
 
 ### Step 2 — Structured field extraction  [Opus 5.5]
 GPT-4o-mini prompt to extract `clientName`, `phone`, `serviceRequired`, `urgency`, `requestedTime` as strict typed JSON (zod-validated — never trust the model's output shape blindly), pre-filling the review form instead of just the description. Opus for this one: it's the first LLM-extraction feature in the app, prompt quality directly decides whether this is useful or annoying, and South African names/slang/addresses are exactly the kind of edge case worth getting right before shipping.

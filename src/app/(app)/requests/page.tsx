@@ -4,6 +4,7 @@ import { tenantDb } from '@/lib/db';
 import { formatDateStr, localDateStr } from '@/lib/dates';
 import { openServiceRequests } from '@/lib/requests/queries';
 import { dismissRequestAction, addRequestAsClientAction } from '@/lib/requests/actions';
+import { VoiceMemoRecorder } from '@/components/requests/VoiceMemoRecorder';
 
 const SOURCE_LABEL: Record<string, string> = {
   MANUAL: 'Added by hand',
@@ -11,6 +12,7 @@ const SOURCE_LABEL: Record<string, string> = {
   WHATSAPP: 'WhatsApp',
   GOOGLE_BUSINESS: 'Google Business',
   PHONE: 'Phone',
+  VOICE_MEMO: 'Voice memo',
 };
 
 export default async function RequestsPage() {
@@ -29,6 +31,8 @@ export default async function RequestsPage() {
           and anywhere else you&rsquo;ve added one.
         </p>
 
+        <VoiceMemoRecorder />
+
         {requests.length === 0 ? (
           <p className="rounded-xl border border-dashed border-slate-800 p-10 text-center text-slate-500">Nothing new right now.</p>
         ) : (
@@ -44,7 +48,12 @@ export default async function RequestsPage() {
                     </div>
                   </div>
                 </div>
-                <p className="mb-3 whitespace-pre-wrap text-sm text-slate-300">{r.description}</p>
+                <p className={`whitespace-pre-wrap text-sm text-slate-300 ${r.transcript && r.transcript !== r.description ? 'mb-1' : 'mb-3'}`}>
+                  {r.description}
+                </p>
+                {r.transcript && r.transcript !== r.description && (
+                  <p className="mb-3 text-xs italic text-slate-500">Originally said: &ldquo;{r.transcript}&rdquo;</p>
+                )}
                 <div className="flex gap-2">
                   <form action={addRequestAsClientAction}>
                     <input type="hidden" name="id" value={r.id} />
