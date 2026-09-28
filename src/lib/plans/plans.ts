@@ -6,7 +6,7 @@ import type { PlanTier, Tenant } from '@prisma/client';
  * to change. Placement is a starting point for beta and expected to move
  * once feedback comes in.
  */
-export type Feature = 'onlinePayments' | 'paymentReminders' | 'technicianApp' | 'creditors';
+export type Feature = 'onlinePayments' | 'paymentReminders' | 'technicianApp' | 'creditors' | 'vatSummary';
 
 /** The lowest package that includes each feature. Everything above it gets it too. */
 const FEATURE_PLAN: Record<Feature, PlanTier> = {
@@ -14,6 +14,7 @@ const FEATURE_PLAN: Record<Feature, PlanTier> = {
   onlinePayments: 'TEAM',
   paymentReminders: 'TEAM',
   creditors: 'TEAM',
+  vatSummary: 'TEAM',
 };
 
 const PLAN_RANK: Record<PlanTier, number> = { FREE_SOLO: 0, TEAM: 1, GROWTH: 2 };

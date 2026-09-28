@@ -1,6 +1,6 @@
 # Bookkeeping (cashbook) — plan
 
-Status: Phase 1a and 1b built and tested 2026-09-28 — the full cashbook (accounts, expenses, transfers, categories), creditors/supplier bills, and automatic invoice-payment posting (decision 6). Bank CSV import and reconciliation (Phase 2) are not built.
+Status: Phase 1 (1a + 1b) built and tested 2026-09-28 — the full cashbook, creditors, automatic invoice-payment posting. Reports (P&L and VAT summary) built and tested 2026-09-28 too, ahead of the rest of Phase 2 — see "Reports" below. Bank CSV import and reconciliation are not built.
 
 ## The goal
 
@@ -73,11 +73,10 @@ Engine: every screen above posts through a hidden double-entry ledger (`src/lib/
 - User taps ✓ to confirm or picks something else. A progress bar shows "32 of 40 lines matched".
 - Closing: statement closing balance must equal the app's balance; if not, we show the difference.
 
-**Reports**
-- Profit & loss (month / tax year, SA tax year = March–February).
-- VAT summary per period (output VAT from invoices, input VAT from expenses) — figures for the SARS VAT201.
-- Creditors aged list (current / 30 / 60 / 90+ days) and the existing debtors list.
-- **Accountant export**: CSV/Excel of all entries with account codes, plus a zip of slip photos.
+**Reports** — `/bookkeeping/reports` (built, ahead of the rest of this phase)
+- **Profit & loss** (month, with prev/next navigation, or the current SA tax year — March–February). Income is cash actually received on invoices in the period, independent of whether the cashbook has been touched at all. Expenses are accrual — everything posted to an expense category's ledger account in the period (plain expenses and bills raised), whether paid off yet or not, broken down by category. Free Solo included.
+- **VAT summary** per period, same month/tax-year navigation — output VAT (the VAT share of cash actually collected, proportional per payment) minus input VAT (back-calculated from expenses/bills marked "Includes VAT" at the tenant's standard rate) — figures for the SARS VAT201. Only shown to VAT-registered tenants; Team/Growth only (`canUse(tenant, 'vatSummary')`, checked server-side).
+- **Not built**: creditors aged list (current/30/60/90+ days), the existing debtors list surfaced here too, and the accountant export (CSV/Excel + zip of slip photos) — left for when Phase 2's bank reconciliation work happens, since the export format may want to match whatever bank-import shape lands then.
 
 ## Phase 3 — Accounting package sync (top tier)
 

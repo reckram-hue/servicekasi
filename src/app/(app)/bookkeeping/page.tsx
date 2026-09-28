@@ -35,6 +35,9 @@ export default async function BookkeepingPage() {
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold">Bookkeeping — {tenant.businessName}</h1>
           <div className="flex flex-wrap gap-2">
+            <Link href="/bookkeeping/reports" className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:border-slate-500">
+              Reports
+            </Link>
             {canUse(tenant, 'creditors') && (
               <Link href="/bookkeeping/bills" className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-300 hover:border-slate-500">
                 Who you owe
