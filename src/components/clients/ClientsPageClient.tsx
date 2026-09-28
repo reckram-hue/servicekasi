@@ -3,7 +3,13 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { createClientAction, toggleArchiveClientAction, updateClientAction, type FormState } from '@/lib/clients/actions';
+import {
+  createClientAction,
+  toggleArchiveClientAction,
+  toggleMarketingOptOutAction,
+  updateClientAction,
+  type FormState,
+} from '@/lib/clients/actions';
 import { FormMessage, SubmitButton } from '@/components/auth/ui';
 import { ClientFormFields } from './ClientFormFields';
 import { Modal } from '@/components/ui/Modal';
@@ -19,6 +25,7 @@ export type ClientRow = {
   notes: string | null;
   whatsappOptIn: boolean;
   archived: boolean;
+  marketingOptOutAt: Date | null;
   properties: { street: string; suburb: string | null; city: string; region: string | null; postalCode: string | null; accessNotes: string | null }[];
 };
 
@@ -153,6 +160,26 @@ function ArchiveToggle({ client }: { client: ClientRow }) {
   );
 }
 
+// ───────────────────────── marketing opt-out toggle ─────────────────────────
+
+function MarketingOptOutToggle({ client }: { client: ClientRow }) {
+  const optedOut = !!client.marketingOptOutAt;
+  return (
+    <form action={toggleMarketingOptOutAction}>
+      <input type="hidden" name="id" value={client.id} />
+      <input type="hidden" name="optedOut" value={String(optedOut)} />
+      <button
+        type="submit"
+        className={`rounded-md px-3 py-1 text-xs font-medium ${
+          optedOut ? 'bg-amber-500/10 text-amber-300 hover:bg-amber-500/20' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+        }`}
+      >
+        {optedOut ? 'Opted out of promotions' : 'Client asked to stop promotions'}
+      </button>
+    </form>
+  );
+}
+
 // ───────────────────────── page ─────────────────────────
 
 export function ClientsPageClient({ clients, query }: { clients: ClientRow[]; query: string }) {
@@ -188,6 +215,11 @@ export function ClientsPageClient({ clients, query }: { clients: ClientRow[]; qu
                 <div className="font-medium text-slate-100">
                   {displayName(c)}
                   {c.companyName && <span className="ml-2 text-xs text-slate-500">{c.companyName}</span>}
+                  {c.marketingOptOutAt && (
+                    <span className="ml-2 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
+                      Opted out
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-slate-400">
                   {[c.phone, c.email].filter(Boolean).join(' · ') || 'No contact details'}
@@ -221,6 +253,7 @@ export function ClientsPageClient({ clients, query }: { clients: ClientRow[]; qu
                 >
                   Edit
                 </button>
+                <MarketingOptOutToggle client={c} />
                 <ArchiveToggle client={c} />
               </div>
             </div>

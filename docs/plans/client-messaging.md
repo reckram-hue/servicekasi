@@ -1,6 +1,6 @@
 # Client messaging (CRM broadcasts) — plan
 
-Status: decisions confirmed 2026-09-28 [Opus 5.5]. Nothing built yet.
+Status: decisions confirmed 2026-09-28 [Opus 5.5]. Steps 1–3 built and tested 2026-09-28 [Sonnet 5] — WhatsApp broadcasts with POPIA opt-outs are live. Steps 4–5 (email sending, history) not started.
 
 ## Confirmed with the owner (2026-09-28)
 
@@ -66,17 +66,17 @@ This is our reading, not legal advice. Worth one conversation with an attorney b
 
 ## Steps
 
-### Step 1 — Opt-out plumbing and the public unsubscribe page  [Sonnet 5]
-Schema fields above, `/u/<token>` page ("You won't get promotions from Test Plumbing again" + undo within the page), "Client asked to stop promotions" toggle on the client edit screen, opt-out shown as a badge in the client list.
-**Test:** opt a client out both ways; confirm the badge and the recorded date/source.
+### Step 1 — Opt-out plumbing and the public unsubscribe page  [Sonnet 5] ✅ done
+Schema fields above, `/u/<token>` page ("You won't get promotions from Test Plumbing again" + undo within the page), "Client asked to stop promotions" toggle on the client list, opt-out shown as a badge next to the client's name.
+**Tested:** opted a client out from the client list (badge + button flipped), opened `/u/<token>` logged out, undid it in-page, reloaded to confirm it persisted, then opted back out — client list stayed in sync throughout.
 
-### Step 2 — Audience builder and preview  [Sonnet 5]
-`/messages/new`: pick kind, channel, filters; live count with skip reasons; write the message with `{firstName}` merge field. Nothing sends yet.
-**Test:** filters by suburb and by "no work in 12 months" return the right clients; opted-out clients are skipped for promotions but not notices.
+### Step 2 — Audience builder and preview  [Sonnet 5] ✅ done
+`/messages/new`: pick kind (Service notice / Promotion), channel (WhatsApp send list now; Email shown as "coming later"), place and recent-work filters, live count with skip-reason breakdown (opted out / no contact details), message composer with `{firstName}` merge field and a sale-language nudge on service notices. Nothing sends yet.
+**Tested:** live preview updated on every filter change without a page reload; filtering by "Soweto" plus opting the seed client out showed "This will reach 0 clients (1 opted out skipped)"; typing "special R450" into a service notice triggered the sale-language nudge.
 
-### Step 3 — WhatsApp send list  [Sonnet 5]
-Saving creates the `Broadcast` + recipients; the send-list screen shows one button per client, marks each SENT when tapped, remembers progress if the owner leaves and comes back. Promotions get "Reply STOP to opt out" appended automatically.
-**Test:** send to three clients, leave halfway, come back, finish.
+### Step 3 — WhatsApp send list  [Sonnet 5] ✅ done
+Saving creates the `Broadcast` + `BroadcastRecipient` rows (including SKIPPED ones with a reason); the send-list screen (`/messages/[id]`) shows one button per client, marks each SENT when tapped (and stamps the broadcast's `sentAt` once nothing is left PENDING); a `/messages` list shows past broadcasts with sent/total counts. Promotions get "Reply STOP to opt out of promotions." appended automatically. Gated behind `whatsappBroadcasts` (Team and up).
+**Tested:** created a service notice, tapped "Send via WhatsApp" on the one seeded client, watched it flip to "Sent" and the broadcast to "1 sent · 0 to go · all done" without a reload; confirmed it then appears in `/messages`.
 
 ### Step 4 — Email sending  [Opus 5.5 for provider setup + deliverability, then Sonnet 5]
 Resend integration, DNS records (SPF/DKIM) for the sending domain, queued sending in small batches with retries, unsubscribe link and `List-Unsubscribe` header on every promotion, bounce/complaint webhook marking addresses bad, daily cap.

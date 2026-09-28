@@ -33,6 +33,8 @@ const TENANT_MODELS = new Set<Prisma.ModelName>([
   'JournalEntry',
   'Bill',
   'BillPayment',
+  'Broadcast',
+  'BroadcastRecipient',
 ]);
 
 const WHERE_OPS = new Set([

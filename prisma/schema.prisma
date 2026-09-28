@@ -131,6 +131,8 @@ model Tenant {
   journalEntries   JournalEntry[]
   bills            Bill[]
   billPayments     BillPayment[]
+  broadcasts       Broadcast[]
+  broadcastRecipients BroadcastRecipient[]
 }
 
 // ───────────────────────── People & access ─────────────────────────
@@ -241,16 +243,22 @@ model Client {
   whatsappOptIn     Boolean   @default(false)
   consentRecordedAt DateTime?
 
+  // POPIA: a client who has said no to promotions. Never cleared automatically.
+  marketingOptOutAt     DateTime?
+  marketingOptOutSource String? // "email_link" | "owner" | "whatsapp_reply"
+  unsubscribeToken      String    @unique @default(uuid())
+
   archived  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  properties    Property[]
-  requests      ServiceRequest[]
-  quotes        Quote[]
-  jobs          Job[]
-  invoices      Invoice[]
-  conversations Conversation[]
+  properties          Property[]
+  requests            ServiceRequest[]
+  quotes              Quote[]
+  jobs                Job[]
+  invoices            Invoice[]
+  conversations       Conversation[]
+  broadcastRecipients BroadcastRecipient[]
 
   @@index([tenantId, lastName])
   @@index([tenantId, phone])
@@ -788,6 +796,64 @@ model MessageTranslation {
   createdAt DateTime @default(now())
 
   @@id([messageId, language])
+}
+
+// ───────────────────────── Client broadcasts (CRM) ─────────────────────────
+// One-way, many-recipient messages to a business's own clients — service
+// notices or marketing. Deliberately separate from Conversation/Message,
+// which are two-way translated threads with one other party.
+
+enum BroadcastKind {
+  SERVICE_NOTICE
+  PROMOTION
+}
+
+enum BroadcastChannel {
+  WHATSAPP_LIST
+  EMAIL
+}
+
+enum BroadcastRecipientStatus {
+  PENDING
+  SENT
+  SKIPPED
+  FAILED
+}
+
+model Broadcast {
+  id                    String           @id @default(uuid())
+  tenantId              String
+  tenant                Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  kind                  BroadcastKind
+  channel               BroadcastChannel
+  subject               String?
+  body                  String
+  audience              Json // the filters used to build this broadcast's recipient list
+  createdByMembershipId String?
+  createdAt             DateTime         @default(now())
+  sentAt                DateTime?
+
+  recipients BroadcastRecipient[]
+
+  @@index([tenantId, createdAt])
+}
+
+model BroadcastRecipient {
+  id                String                   @id @default(uuid())
+  tenantId          String
+  tenant            Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  broadcastId       String
+  broadcast         Broadcast                @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  clientId          String
+  client            Client                   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  status            BroadcastRecipientStatus @default(PENDING)
+  skipReason        String?
+  sentAt            DateTime?
+  providerMessageId String?
+
+  @@unique([broadcastId, clientId])
+  @@index([tenantId, broadcastId])
+  @@index([clientId])
 }
 
 // ───────────────────────── Audit ─────────────────────────

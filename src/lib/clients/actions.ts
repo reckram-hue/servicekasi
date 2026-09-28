@@ -80,3 +80,18 @@ export async function toggleArchiveClientAction(formData: FormData): Promise<voi
   await db.client.update({ where: { id }, data: { archived: !currentlyArchived } });
   revalidatePath('/clients');
 }
+
+export async function toggleMarketingOptOutAction(formData: FormData): Promise<void> {
+  const { tenant } = await requireRole();
+  const id = String(formData.get('id') ?? '');
+  const currentlyOptedOut = formData.get('optedOut') === 'true';
+
+  const db = tenantDb(tenant.id);
+  await db.client.update({
+    where: { id },
+    data: currentlyOptedOut
+      ? { marketingOptOutAt: null, marketingOptOutSource: null }
+      : { marketingOptOutAt: new Date(), marketingOptOutSource: 'owner' },
+  });
+  revalidatePath('/clients');
+}
