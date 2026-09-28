@@ -1,6 +1,6 @@
 # Client relationship features (CRM) — plan
 
-Status: proposed 2026-09-28 [Opus 5.5]. Nothing built yet — decisions below need the owner's OK first.
+Status: planned 2026-09-28 [Opus 5.5]; owner went ahead with Step 1 without changing any decisions. Step 1 built and tested 2026-09-28 [Sonnet 5.5]. Steps 2–5 not started.
 
 ## The goal
 
@@ -59,9 +59,18 @@ The pipeline is the flashiest item and the **least useful for this audience**. P
 
 ## Steps
 
-### Step 1 — Client page with timeline  [Sonnet 5]
-`/clients/[id]`: contact details, properties, quick actions and the derived timeline (decision 2). Link to it from the client list (the name), from the job/quote/invoice detail pages (client name), and from the two request-to-client flows (replacing `/clients?q=…`). Editing stays in the existing modal, opened from the page.
-**Test:** a client with a request → quote → job → invoice → payment shows all of it, newest first, with correct dates. A client with nothing shows a friendly empty state. Another business's client id returns not found (tenant isolation).
+### Step 1 — Client page with timeline  [Sonnet 5] ✅ done
+`/clients/[id]` shows contact details, properties (with access notes), quick actions (new quote/job/invoice, call, WhatsApp), three headline figures (jobs, paid so far, owing now), the existing notes, upcoming visits, and the derived history from `lib/clients/timeline.ts`. That reads requests, quotes (started/sent/approved/declined/changes asked), jobs (created/completed/cancelled), completed and no-access visits, issued invoices and credit notes, overdue invoices, payments, refunds, reversals and broadcasts sent. Nothing is stored separately. Linked from the client list (the name), the job, quote and invoice pages, and "Add as client" on a lead now lands here instead of a filtered list. Editing reuses the existing modal, opened from the page. The voice-memo booking flow still lands on the job it creates, which is the more useful place.
+
+**What testing against real data changed:**
+- A refund was titled "Paid -R 517,50". It now says "Refunded R 517,50".
+- A payment reversal didn't say which invoice it belonged to, and sorted *before* the payment it undid. It now names the invoice and always sorts just after its payment.
+- Payments typed in by hand only store a date (midnight UTC), so they showed an invented "02:00". They now show the date only. Online payments, which carry a real time, still show one.
+- On a phone the three amount tiles clipped the figures ("R 12 362,5…"), including the owing amount, which is the one that matters. They now stack as label-and-value rows below tablet width.
+
+**Test results:** a client with a full history (4 jobs, 5 quotes, invoices, a credit note, refunds, a reversal, a broadcast) shows every event newest first. A client with nothing shows the empty state. Editing from the page updates it. A client belonging to a different business returns 404 (checked by creating a second business, trying it, and deleting it). The job, quote and invoice pages all link through. "Add as client" from a lead lands on the new client's page with the lead in its history. Tested on desktop and phone width against the local database, not the live one.
+
+**Known gaps, on purpose:** the request's description still gets copied into the client's Notes, so it appears twice (Step 2 removes that). A declined quote is dated by its last change, since it has no "declined at" field. Client notes are visible here to all office roles; technicians can't reach this page.
 
 ### Step 2 — Notes log and Key info  [Sonnet 5]
 `ClientNote` model and migration, add/delete a note on the client page, notes in the timeline, "Key info" relabel and pinned box, and stop copying request descriptions into it (decision 3). Office roles only (decision 4).

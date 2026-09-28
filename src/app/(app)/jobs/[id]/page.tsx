@@ -278,7 +278,9 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
         <div className="mb-6 rounded-xl border border-slate-800 p-4">
           <div className="text-xs uppercase tracking-wide text-slate-500">Client</div>
-          <div className="font-medium text-slate-100">{displayName(job.client)}</div>
+          <Link href={`/clients/${job.client.id}`} className="font-medium text-slate-100 hover:text-amber-300 hover:underline">
+            {displayName(job.client)}
+          </Link>
           {job.property && <div className="mt-1 text-sm text-slate-400">{propertyLabel(job.property)}</div>}
           {job.description && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-300">{job.description}</p>}
         </div>

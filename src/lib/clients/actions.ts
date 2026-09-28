@@ -68,6 +68,7 @@ export async function updateClientAction(_: FormState, formData: FormData): Prom
   });
 
   revalidatePath('/clients');
+  revalidatePath('/clients/[id]', 'page');
   return { ok: 'Saved.' };
 }
 

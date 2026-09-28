@@ -100,7 +100,7 @@ function AddClientButton() {
 
 // ───────────────────────── edit ─────────────────────────
 
-function EditClientModal({ client, onClose }: { client: ClientRow; onClose: () => void }) {
+export function EditClientModal({ client, onClose }: { client: ClientRow; onClose: () => void }) {
   const [state, action, pending] = useActionState<FormState, FormData>(updateClientAction, undefined);
   const property = client.properties[0];
 
@@ -213,7 +213,9 @@ export function ClientsPageClient({ clients, query }: { clients: ClientRow[]; qu
             >
               <div>
                 <div className="font-medium text-slate-100">
-                  {displayName(c)}
+                  <Link href={`/clients/${c.id}`} className="hover:text-amber-300 hover:underline">
+                    {displayName(c)}
+                  </Link>
                   {c.companyName && <span className="ml-2 text-xs text-slate-500">{c.companyName}</span>}
                   {c.marketingOptOutAt && (
                     <span className="ml-2 rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">

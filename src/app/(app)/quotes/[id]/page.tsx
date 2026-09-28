@@ -68,6 +68,12 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
           </h1>
           <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-medium text-slate-300">{quote.status.replace('_', ' ')}</span>
         </div>
+        <div className="-mt-4 mb-6 text-sm text-slate-400">
+          For{' '}
+          <Link href={`/clients/${quote.client.id}`} className="text-slate-200 hover:text-amber-300 hover:underline">
+            {displayName(quote.client)}
+          </Link>
+        </div>
 
         {quote.status === 'APPROVED' && (
           <div className="mb-6 rounded-lg bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">

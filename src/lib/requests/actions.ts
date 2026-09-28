@@ -180,5 +180,5 @@ export async function addRequestAsClientAction(formData: FormData): Promise<void
   await db.serviceRequest.updateMany({ where: { id, status: 'NEW' }, data: { status: 'CONVERTED', clientId: client.id } });
   revalidatePath('/requests');
   // Straight to the new client, where "New quote" / "New job" are one click away.
-  redirect(`/clients?q=${encodeURIComponent(client.phone ?? client.firstName)}`);
+  redirect(`/clients/${client.id}`);
 }

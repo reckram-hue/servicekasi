@@ -102,7 +102,9 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         <div className="mt-2 mb-2 flex items-center justify-between print:hidden">
           <h1 className="text-2xl font-bold">
             {invoice.number ?? 'Draft invoice'}
-            <span className="ml-2 text-base font-normal text-slate-400">{displayName(invoice.client)}</span>
+            <Link href={`/clients/${invoice.client.id}`} className="ml-2 text-base font-normal text-slate-400 hover:text-amber-300 hover:underline">
+              {displayName(invoice.client)}
+            </Link>
           </h1>
           <div className="flex items-center gap-2">
             {overdue && <span className="rounded-full bg-red-500/10 px-3 py-1 text-xs font-medium text-red-300">Overdue</span>}
