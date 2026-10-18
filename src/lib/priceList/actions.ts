@@ -116,6 +116,6 @@ export async function addStarterItemsAction(_: FormState, formData: FormData): P
   const label = INDUSTRY_LABELS[industry];
   if (added === 0) return { ok: `You already have all the ${label} starter items.` };
   return {
-    ok: `Added ${added} ${label} item${added === 1 ? '' : 's'}.${skipped ? ` Skipped ${skipped} you already had.` : ''} Change the prices to your own below.`,
+    ok: `Added ${added} ${label} item${added === 1 ? '' : 's'}.${skipped ? ` Skipped ${skipped} you already had.` : ''} ${industry === 'MOBILE_CAR_WASH' ? 'Set your prices and activate the services you offer below.' : 'Change the prices to your own below.'}`,
   };
 }

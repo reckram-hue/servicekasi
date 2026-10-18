@@ -8,6 +8,7 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
   if (!tenant) notFound();
 
   const businessName = tenant.tradingName || tenant.businessName;
+  const mobileCarWash = tenant.industry === 'MOBILE_CAR_WASH';
 
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
@@ -23,8 +24,9 @@ export default async function PublicBookingPage({ params }: { params: Promise<{ 
           )}
         </div>
 
-        <h1 className="mb-4 text-center text-lg font-semibold text-slate-100">Request a quote</h1>
-        <PublicBookingForm slug={slug} businessName={businessName} />
+        <h1 className="mb-4 text-center text-lg font-semibold text-slate-100">{mobileCarWash ? 'Request a mobile car wash' : 'Request a quote'}</h1>
+        {mobileCarWash && <p className="mb-4 text-center text-sm text-slate-400">Tell us about your vehicle and where you would like it washed. We’ll confirm availability and price with you.</p>}
+        <PublicBookingForm slug={slug} businessName={businessName} mobileCarWash={mobileCarWash} />
 
         {tenant.phone && (
           <p className="mt-6 text-center text-sm text-slate-500">

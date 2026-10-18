@@ -14,7 +14,8 @@
     "test:recurrence": "node --experimental-strip-types src/lib/recurrence.test.ts",
     "test:access": "node --test tests/access-regressions.test.mjs",
     "test:logo": "node --test tests/business-logo.test.mjs",
-    "test:business-access": "node --test tests/business-access.test.mjs"
+    "test:business-access": "node --test tests/business-access.test.mjs",
+    "test:car-wash": "node --test tests/mobile-car-wash.test.mjs"
   },
   "prisma": {
     "seed": "node --experimental-strip-types prisma/seed.ts"

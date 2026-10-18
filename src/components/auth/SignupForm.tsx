@@ -1,6 +1,6 @@
 'use client';
 
-import { startTransition, useActionState, useSyncExternalStore } from 'react';
+import { startTransition, useActionState, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { signupAction } from '@/lib/auth/actions';
 import { INDUSTRIES, INDUSTRY_LABELS } from '@/lib/onboarding/industries';
@@ -8,9 +8,10 @@ import { Field, FormMessage, RadioGroup, Select, SubmitButton } from './ui';
 
 const noopSubscribe = () => () => {};
 
-export function SignupForm() {
+export function SignupForm({ initialIndustry = '' }: { initialIndustry?: string } = {}) {
   const [state, action, pending] = useActionState(signupAction, undefined);
   const e = state?.fieldErrors;
+  const [industry, setIndustry] = useState(initialIndustry);
 
   // A handler instead of <form action> so a failed attempt (e.g. email already
   // used) keeps what was typed instead of React clearing the form.
@@ -27,12 +28,13 @@ export function SignupForm() {
       <FormMessage error={state?.error} />
       <Field label="Business name" name="businessName" required errors={e?.businessName} placeholder="e.g. Kasi Plumbing" />
       <Select
-        label="What's your trade?"
+        label="What type of business do you run?"
         name="industry"
         required
-        defaultValue=""
+        defaultValue={initialIndustry}
+        onChange={(event) => setIndustry(event.target.value)}
         errors={e?.industry}
-        hint="We'll fill your price list with common jobs for your trade. You can change or add anything later."
+        hint="We'll tailor your setup and add starter services you can customise."
       >
         <option value="" disabled>
           Choose one…
@@ -43,6 +45,7 @@ export function SignupForm() {
           </option>
         ))}
       </Select>
+      {industry === 'MOBILE_CAR_WASH' && <p className="mb-4 rounded-xl border border-cyan-800 bg-cyan-950/40 p-4 text-sm text-cyan-100">Your mobile car wash workspace: plan washes at customers’ homes or workplaces, organise your wash team, invoice customers and track running costs. Add your own prices before activating the starter wash services.</p>}
       <RadioGroup
         label="Do you do the work yourself?"
         name="fieldwork"

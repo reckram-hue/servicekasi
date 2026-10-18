@@ -4,13 +4,15 @@ export function TechnicianPicker({
   technicians,
   selected,
   onChange,
+  mobileCarWash = false,
 }: {
   technicians: { id: string; name: string }[];
   selected: string[];
   onChange: (ids: string[]) => void;
+  mobileCarWash?: boolean;
 }) {
   if (technicians.length === 0) {
-    return <p className="mb-3 text-sm text-slate-500">Add a technician on the Team page before scheduling a visit.</p>;
+    return <p className="mb-3 text-sm text-slate-500">{mobileCarWash ? 'Add your wash team or enable fieldwork for yourself on the Wash team page.' : 'Add a technician on the Team page before scheduling a visit.'}</p>;
   }
 
   function toggle(id: string) {
@@ -19,7 +21,7 @@ export function TechnicianPicker({
 
   return (
     <div className="mb-3">
-      <span className="mb-1 block text-sm text-slate-300">Technician(s)</span>
+      <span className="mb-1 block text-sm text-slate-300">{mobileCarWash ? 'Wash team — select everyone attending' : 'Technician(s)'}</span>
       <div className="flex flex-wrap gap-2">
         {technicians.map((t) => (
           <label

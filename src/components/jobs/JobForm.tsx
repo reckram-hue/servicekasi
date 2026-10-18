@@ -7,7 +7,7 @@ import { Field, FormMessage, Select, SubmitButton, TextArea } from '@/components
 
 const PRIORITY_LABELS: Record<string, string> = { LOW: 'Low', NORMAL: 'Normal', HIGH: 'High', EMERGENCY: 'Emergency' };
 
-export function JobForm({ client }: { client: { id: string; name: string; properties: { id: string; label: string }[] } }) {
+export function JobForm({ client, mobileCarWash = false }: { client: { id: string; name: string; properties: { id: string; label: string }[] }; mobileCarWash?: boolean }) {
   const router = useRouter();
   const [state, action, pending] = useActionState<FormState, FormData>(createJobAction, undefined);
   const e = state?.fieldErrors;
@@ -23,7 +23,7 @@ export function JobForm({ client }: { client: { id: string; name: string; proper
           <div className="font-medium text-slate-100">{client.name}</div>
         </div>
 
-        <Field label="Title" name="title" required errors={e?.title} placeholder="e.g. Burst geyser" />
+        <Field label={mobileCarWash ? 'Wash / vehicle' : 'Title'} name="title" required errors={e?.title} placeholder={mobileCarWash ? 'e.g. Full wash — Toyota Corolla, CA 123 456' : 'e.g. Burst geyser'} />
 
         {client.properties.length > 0 && (
           <Select label="Property (optional)" name="propertyId" defaultValue={client.properties[0]?.id ?? ''}>
@@ -44,14 +44,14 @@ export function JobForm({ client }: { client: { id: string; name: string; proper
               </option>
             ))}
           </Select>
-          <Field label="Category (optional)" name="category" placeholder="e.g. Plumbing" />
+          <Field label="Category (optional)" name="category" placeholder={mobileCarWash ? 'e.g. Full wash, detailing or fleet' : 'e.g. Plumbing'} />
         </div>
       </div>
 
-      <TextArea label="Description / instructions (optional)" name="description" errors={e?.description} />
+      <TextArea label={mobileCarWash ? 'Wash location, vehicles and instructions (optional)' : 'Description / instructions (optional)'} name="description" errors={e?.description} placeholder={mobileCarWash ? 'Customer address, vehicle details, parking/access instructions and water or power availability.' : undefined} />
 
       <div className="flex gap-3">
-        <SubmitButton pending={pending}>Create job</SubmitButton>
+        <SubmitButton pending={pending}>{mobileCarWash ? 'Create wash' : 'Create job'}</SubmitButton>
         <button
           type="button"
           onClick={() => router.back()}

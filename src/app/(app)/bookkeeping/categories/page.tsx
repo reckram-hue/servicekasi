@@ -9,7 +9,7 @@ export default async function ExpenseCategoriesPage() {
   const { tenant } = await requireRole();
   const db = tenantDb(tenant.id);
 
-  await ensureDefaultExpenseCategories(db, tenant.id);
+  await ensureDefaultExpenseCategories(db, tenant.id, tenant.industry);
   const categories = await activeExpenseCategories(db);
 
   return (

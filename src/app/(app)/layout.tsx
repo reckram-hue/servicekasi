@@ -29,6 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <AppChrome
       userName={user.name}
       businessName={tenant.businessName}
+      mobileCarWash={tenant.industry === 'MOBILE_CAR_WASH'}
       role={membership.role}
       logout={logoutAction}
       securityReminder={membership.role === 'OWNER' && !user.totpEnabled}

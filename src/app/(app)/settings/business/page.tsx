@@ -2,6 +2,7 @@ import { headers } from 'next/headers';
 import { requireRole } from '@/lib/auth/session';
 import { BusinessSettingsForm } from '@/components/settings/BusinessSettingsForm';
 import { BusinessLogoForm } from '@/components/settings/BusinessLogoForm';
+import { BusinessTypeForm } from '@/components/settings/BusinessTypeForm';
 import { BookingPageLink } from '@/components/settings/BookingPageLink';
 import { getInvoiceNumbering } from '@/lib/invoices/numbering';
 
@@ -22,6 +23,7 @@ export default async function BusinessSettingsPage() {
         <h1 className="mb-6 text-2xl font-bold">Business settings</h1>
         <BookingPageLink url={`${origin}/book/${tenant.slug}`} />
         <BusinessLogoForm logoUrl={tenant.logoUrl} businessName={tenant.tradingName || tenant.businessName} />
+        <BusinessTypeForm industry={tenant.industry} />
         <BusinessSettingsForm
           tenant={{
             businessName: tenant.businessName,

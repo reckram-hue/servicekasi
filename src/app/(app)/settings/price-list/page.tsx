@@ -17,7 +17,8 @@ export default async function PriceListPage() {
         <Link href="/settings/business" className="text-sm text-amber-400 hover:underline">
           ← Business settings
         </Link>
-        <h1 className="mt-2 mb-6 text-2xl font-bold">Price list</h1>
+        <h1 className="mt-2 mb-6 text-2xl font-bold">{tenant.industry === 'MOBILE_CAR_WASH' ? 'Wash services & prices' : 'Price list'}</h1>
+        {tenant.industry === 'MOBILE_CAR_WASH' && <p className="mb-5 rounded-xl border border-cyan-800 bg-cyan-950/40 p-4 text-sm text-cyan-100">Your car-wash starter services begin inactive with zero-price placeholders. Edit each service to set your own price, then choose Activate for the services you offer. You can rename them or add more.</p>}
         <StarterItemsPanel industry={tenant.industry} />
         <PriceListPageClient items={items} currencyCode={tenant.currencyCode} />
       </div>

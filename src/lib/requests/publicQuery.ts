@@ -18,6 +18,7 @@ export async function getTenantForBooking(slug: string) {
       businessName: true,
       tradingName: true,
       logoUrl: true,
+      industry: true,
       phone: true,
       whatsappNumber: true,
       city: true,

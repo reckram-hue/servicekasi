@@ -5,8 +5,10 @@ import { GettingStartedCard } from "@/components/onboarding/GettingStartedCard";
 import { VoiceMemoRecorder } from "@/components/requests/VoiceMemoRecorder";
 import type { DashboardJob } from "@/lib/jobs/dashboard";
 import type { ChecklistItem } from "@/lib/onboarding/checklist";
+import { CarWashWelcome } from '@/components/CarWashWelcome';
 
 type AppShellProps = {
+  carWashBusiness?: { businessName: string; logoUrl: string | null };
   moneyOwed?: { outstandingCents: number; overdueCents: number; overdueCount: number; currencyCode: string };
   checklist?: ChecklistItem[];
   jobs: DashboardJob[];
@@ -21,6 +23,7 @@ type AppShellProps = {
 
 /** The dashboard's own content — the sidebar and page chrome around it live in the shared (app) layout. */
 export function AppShell({
+  carWashBusiness,
   moneyOwed,
   checklist,
   jobs,
@@ -34,6 +37,7 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <div className="p-6">
+      {carWashBusiness && <CarWashWelcome {...carWashBusiness} />}
       {checklist && <GettingStartedCard items={checklist} />}
       <div className="mb-6">
         <VoiceMemoRecorder technicians={technicians} allowed={voiceMemoAllowed} />
@@ -60,6 +64,7 @@ export function AppShell({
         </div>
       )}
       <AdminDashboard
+        mobileCarWash={!!carWashBusiness}
         jobs={jobs}
         technicianCount={technicianCount}
         currencyCode={currencyCode}

@@ -3,7 +3,7 @@
 import { useActionState } from 'react';
 import { submitServiceRequestAction, type PublicFormState } from '@/lib/requests/publicActions';
 
-export function PublicBookingForm({ slug, businessName }: { slug: string; businessName: string }) {
+export function PublicBookingForm({ slug, businessName, mobileCarWash = false }: { slug: string; businessName: string; mobileCarWash?: boolean }) {
   const [state, action, pending] = useActionState<PublicFormState, FormData>(submitServiceRequestAction, undefined);
 
   if (state?.ok) {
@@ -49,12 +49,12 @@ export function PublicBookingForm({ slug, businessName }: { slug: string; busine
       </label>
 
       <label className="mb-4 block">
-        <span className="mb-1 block text-sm font-medium text-slate-300">What do you need done?</span>
+        <span className="mb-1 block text-sm font-medium text-slate-300">{mobileCarWash ? 'Vehicle, wash service and location' : 'What do you need done?'}</span>
         <textarea
           name="description"
           required
           rows={4}
-          placeholder="e.g. Geyser is leaking, need someone to look at it this week"
+          placeholder={mobileCarWash ? 'e.g. Full wash and vacuum for a Toyota Corolla at 12 Oak Street, Claremont. Please include the number of vehicles and any access instructions.' : 'e.g. Geyser is leaking, need someone to look at it this week'}
           className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 placeholder-slate-500 focus:border-amber-400 focus:outline-none"
         />
       </label>
@@ -73,7 +73,7 @@ export function PublicBookingForm({ slug, businessName }: { slug: string; busine
         disabled={pending}
         className="w-full rounded-lg bg-amber-500 px-4 py-2.5 font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-60"
       >
-        {pending ? 'Sending…' : 'Request a quote'}
+        {pending ? 'Sending…' : mobileCarWash ? 'Request a wash' : 'Request a quote'}
       </button>
     </form>
   );

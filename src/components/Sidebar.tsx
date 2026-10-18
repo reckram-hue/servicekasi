@@ -34,6 +34,7 @@ import type { Role } from '@prisma/client';
 interface SidebarProps {
   userName: string;
   businessName: string;
+  mobileCarWash?: boolean;
   role: Role;
   logout: () => Promise<void>;
   isCollapsed: boolean;
@@ -90,6 +91,7 @@ function activeHref(items: NavItem[], pathname: string): string | undefined {
 export const Sidebar: React.FC<SidebarProps> = ({
   userName,
   businessName,
+  mobileCarWash = false,
   role,
   logout,
   isCollapsed,
@@ -109,7 +111,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       (i.href !== '/settings/access' || role === 'OWNER') &&
       (i.group !== 'Platform' || isPlatformAdmin)
   );
-  const active = activeHref(navItems, pathname);
+  const washLabels: Record<string, string> = { '/': 'Car wash overview', '/schedule': 'Wash planner', '/jobs': 'Washes', '/team': 'Wash team', '/settings/price-list': 'Wash services & prices', '/bookkeeping': 'Costs & bookkeeping' };
+  const labelledItems = mobileCarWash ? navItems.map((item) => ({ ...item, label: washLabels[item.href] ?? item.label })) : navItems;
+  const active = activeHref(labelledItems, pathname);
   const groups: NavItem['group'][] = ['Operations', 'Finance', 'Management', 'Settings', 'Platform'];
   const initials = userName
     .split(' ')
@@ -165,7 +169,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <nav className="no-scrollbar flex-1 space-y-5 overflow-y-auto px-2 py-4">
         {groups.map((group) => {
-          const groupItems = navItems.filter((item) => item.group === group);
+          const groupItems = labelledItems.filter((item) => item.group === group);
           return (
             <div key={group} className="space-y-1">
               {showLabels && <div className="mb-1.5 px-3 text-[10px] font-bold tracking-widest text-slate-500 uppercase">{group}</div>}

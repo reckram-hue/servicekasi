@@ -13,7 +13,7 @@ export default async function NewBillPage() {
   if (!canUse(tenant, 'creditors')) redirect('/bookkeeping/bills');
 
   const db = tenantDb(tenant.id);
-  await ensureDefaultExpenseCategories(db, tenant.id);
+  await ensureDefaultExpenseCategories(db, tenant.id, tenant.industry);
   const categories = await activeExpenseCategories(db);
 
   return (

@@ -6,12 +6,13 @@ export const INDUSTRY_LABELS: Record<Industry, string> = {
   LANDSCAPING: 'Landscaping & gardens',
   POOL: 'Pool maintenance & repairs',
   GENERAL_MAINTENANCE: 'General maintenance / handyman',
+  MOBILE_CAR_WASH: 'Mobile car wash & detailing',
   OTHER: 'Other',
 };
 
 export const INDUSTRIES = Object.keys(INDUSTRY_LABELS) as Industry[];
 
-export type StarterItem = { type: CatalogItemType; name: string; priceRands: number };
+export type StarterItem = { type: CatalogItemType; name: string; priceRands: number; active?: boolean };
 
 // Rough South African prices, excluding VAT. They're starting points only:
 // every business edits them to its own rates on the price list.
@@ -71,6 +72,17 @@ export const STARTER_PRICE_LISTS: Record<Industry, StarterItem[]> = {
     { type: 'SERVICE', name: 'Gutter cleaning', priceRands: 750 },
     { type: 'SERVICE', name: 'Waterproofing (per m²)', priceRands: 180 },
     { type: 'SERVICE', name: 'Gate or burglar bar repair', priceRands: 650 },
+  ],
+  // These are service templates, not advertised prices. Owners price and
+  // activate the services they offer before using them on quotes or invoices.
+  MOBILE_CAR_WASH: [
+    { type: 'SERVICE', name: 'Exterior wash — car', priceRands: 0, active: false },
+    { type: 'SERVICE', name: 'Full wash & vacuum — car', priceRands: 0, active: false },
+    { type: 'SERVICE', name: 'Full wash & vacuum — SUV / bakkie', priceRands: 0, active: false },
+    { type: 'SERVICE', name: 'Interior deep clean', priceRands: 0, active: false },
+    { type: 'SERVICE', name: 'Polish & wax', priceRands: 0, active: false },
+    { type: 'SERVICE', name: 'Fleet wash — per vehicle', priceRands: 0, active: false },
+    { type: 'TRAVEL', name: 'Mobile call-out / travel', priceRands: 0, active: false },
   ],
   OTHER: [
     { type: 'CALLOUT', name: 'Call-out fee', priceRands: 450 },

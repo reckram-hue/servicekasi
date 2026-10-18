@@ -31,6 +31,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default async function JobsPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const { tenant } = await requireRole();
+  const mobileCarWash = tenant.industry === 'MOBILE_CAR_WASH';
   const { status } = await searchParams;
   const statusFilter = status && status in JobStatus ? (status as JobStatus) : undefined;
 
@@ -48,7 +49,8 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
       <div className="mx-auto max-w-4xl">
-        <h1 className="mb-6 text-2xl font-bold">Jobs — {tenant.businessName}</h1>
+        <h1 className="mb-6 text-2xl font-bold">{mobileCarWash ? 'Washes' : 'Jobs'} — {tenant.businessName}</h1>
+        {clients.length === 0 && <p className="mb-4 text-sm text-slate-400"><Link href="/clients/new" className="text-amber-400 underline">Add your first {mobileCarWash ? 'customer' : 'client'}</Link> to create {mobileCarWash ? 'a wash' : 'a job'}.</p>}
 
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
@@ -83,7 +85,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
                 ))}
               </select>
               <button type="submit" className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-amber-400">
-                + New job
+                {mobileCarWash ? '+ New wash' : '+ New job'}
               </button>
             </form>
           )}
@@ -91,7 +93,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
 
         {jobs.length === 0 ? (
           <p className="rounded-xl border border-dashed border-slate-800 p-10 text-center text-slate-500">
-            {status ? 'No jobs with this status.' : 'No jobs yet. Pick a client above to create the first one.'}
+            {mobileCarWash ? (status ? 'No washes with this status.' : 'No washes yet. Choose a customer above to create the first one.') : (status ? 'No jobs with this status.' : 'No jobs yet. Pick a client above to create the first one.')}
           </p>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">

@@ -189,6 +189,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           <details className="mt-2">
             <summary className="cursor-pointer text-xs text-amber-400">Edit this visit only</summary>
             <AddVisitForm
+              mobileCarWash={tenant.industry === 'MOBILE_CAR_WASH'}
               jobId={jobId}
               technicians={techOptions}
               defaultDate={date}
@@ -211,7 +212,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
       <div className="mx-auto max-w-2xl">
         <Link href="/jobs" className="text-sm text-amber-400 hover:underline">
-          ← Jobs
+          ← {tenant.industry === 'MOBILE_CAR_WASH' ? 'Washes' : 'Jobs'}
         </Link>
         <div className="mt-2 mb-2 flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-bold">
@@ -419,7 +420,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
         )}
 
         <div className="mb-6 rounded-xl border border-slate-800 p-4">
-          <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-slate-500">Visits</h2>
+          <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-slate-500">{tenant.industry === 'MOBILE_CAR_WASH' ? 'Wash visits' : 'Visits'}</h2>
           {upcoming.length === 0 ? (
             <p className="text-sm text-slate-500">No upcoming visits.</p>
           ) : (
@@ -441,7 +442,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
           )}
         </div>
 
-        {isOpen && <AddVisitForm jobId={job.id} technicians={techOptions} defaultDate={isoDateDaysFromNow(1)} />}
+        {isOpen && <AddVisitForm mobileCarWash={tenant.industry === 'MOBILE_CAR_WASH'} jobId={job.id} technicians={techOptions} defaultDate={isoDateDaysFromNow(1)} />}
       </div>
     </div>
   );

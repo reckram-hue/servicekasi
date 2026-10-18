@@ -14,7 +14,7 @@ export default async function GettingStartedPage() {
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
       <div className="mx-auto max-w-3xl">
-        <h1 className="mb-2 text-2xl font-bold">Getting started</h1>
+        <h1 className="mb-2 text-2xl font-bold">{tenant.industry === 'MOBILE_CAR_WASH' ? 'Set up your mobile car wash' : 'Getting started'}</h1>
         <p className="mb-6 text-sm text-slate-400">
           {complete
             ? "You've done everything on this list. Nice work — the checklist won't show on your dashboard unless something changes."

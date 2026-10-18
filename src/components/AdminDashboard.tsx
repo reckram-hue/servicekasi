@@ -17,6 +17,7 @@ import { formatMoney } from '@/lib/money';
 import type { DashboardJob } from '@/lib/jobs/dashboard';
 
 interface AdminDashboardProps {
+  mobileCarWash?: boolean;
   jobs: DashboardJob[];
   technicianCount: number;
   currencyCode: string;
@@ -54,6 +55,7 @@ function technicianLabel(job: DashboardJob): string {
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
+  mobileCarWash = false,
   jobs,
   technicianCount,
   currencyCode,
@@ -82,8 +84,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     <div className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Field Operations & Dispatch Hub</h1>
-          <p className="mt-1 text-sm text-slate-500">Real-time job tracking and revenue at a glance</p>
+          {mobileCarWash ? <h2 className="text-2xl font-bold tracking-tight text-slate-100">Wash overview</h2> : <h1 className="text-2xl font-bold tracking-tight text-slate-900">Field Operations & Dispatch Hub</h1>}
+          <p className="mt-1 text-sm text-slate-500">{mobileCarWash ? 'Follow each wash from booking through to payment.' : 'Real-time job tracking and revenue at a glance'}</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -94,7 +96,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 viewMode === 'BOARD' ? 'bg-white font-bold text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Dispatch Board
+              {mobileCarWash ? 'Wash board' : 'Dispatch Board'}
             </button>
             <button
               onClick={() => setViewMode('LIST')}
@@ -119,7 +121,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             + New invoice
           </Link>
           <Link href="/jobs" className="rounded-lg bg-slate-900 px-4 py-2 text-xs font-medium text-white shadow-xs transition-colors hover:bg-slate-800">
-            + New job
+            {mobileCarWash ? '+ New wash' : '+ New job'}
           </Link>
         </div>
       </div>
@@ -151,14 +153,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         <div className="rounded-xl border border-slate-200 bg-white p-5">
           <div className="flex items-center justify-between text-xs text-slate-500">
-            <span>Active Dispatches</span>
+            <span>{mobileCarWash ? 'Active washes' : 'Active Dispatches'}</span>
             <Clock className="h-4 w-4 text-blue-600" />
           </div>
           <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-slate-900">{activeDispatches}</p>
           <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
             <span>Scheduled & on site</span>
             <span aria-hidden="true">·</span>
-            <span>{technicianCount} field techs</span>
+            <span>{technicianCount} {mobileCarWash ? 'wash team members' : 'field techs'}</span>
           </div>
         </div>
 
@@ -169,7 +171,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           </div>
           <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-slate-900">{unassignedCount}</p>
           <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-            <span>Awaiting technician allocation</span>
+            <span>{mobileCarWash ? 'Awaiting wash team assignment' : 'Awaiting technician allocation'}</span>
           </div>
         </div>
       </div>
@@ -181,7 +183,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by job #, suburb, client, technician..."
+            placeholder={mobileCarWash ? 'Search washes, customers, suburbs or team members...' : 'Search by job #, suburb, client, technician...'}
             className="w-full rounded-lg border border-slate-200 py-1.5 pr-4 pl-9 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none sm:text-sm"
           />
         </div>
@@ -197,7 +199,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   statusFilter === status ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
-                {status === 'ALL' ? 'All Jobs' : STATUS_COLUMNS.find((c) => c.key === status)!.label}
+                {status === 'ALL' ? (mobileCarWash ? 'All washes' : 'All Jobs') : STATUS_COLUMNS.find((c) => c.key === status)!.label}
               </button>
             ))}
           </div>
@@ -257,7 +259,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                   {columnJobs.length === 0 && (
                     <div className="flex h-32 flex-col items-center justify-center rounded-lg border border-dashed border-slate-200 text-xs text-slate-400">
-                      <span>No jobs in this queue</span>
+                      <span>{mobileCarWash ? 'No washes here yet' : 'No jobs in this queue'}</span>
                     </div>
                   )}
                 </div>
@@ -271,11 +273,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <table className="w-full text-left text-xs">
               <thead className="border-b border-slate-200 bg-slate-50 font-semibold text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Work Order</th>
+                  <th className="px-4 py-3">{mobileCarWash ? 'Wash' : 'Work Order'}</th>
                   <th className="px-4 py-3">Client & Location</th>
                   <th className="px-4 py-3">Category</th>
                   <th className="px-4 py-3">Next Visit</th>
-                  <th className="px-4 py-3">Technician</th>
+                  <th className="px-4 py-3">{mobileCarWash ? 'Wash team' : 'Technician'}</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>

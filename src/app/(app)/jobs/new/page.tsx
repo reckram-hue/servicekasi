@@ -26,11 +26,12 @@ export default async function NewJobPage({ searchParams }: { searchParams: Promi
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
       <div className="mx-auto max-w-2xl">
         <Link href="/jobs" className="text-sm text-amber-400 hover:underline">
-          ← Jobs
+          ← {tenant.industry === 'MOBILE_CAR_WASH' ? 'Washes' : 'Jobs'}
         </Link>
-        <h1 className="mt-2 mb-6 text-2xl font-bold">New job</h1>
+        <h1 className="mt-2 mb-6 text-2xl font-bold">{tenant.industry === 'MOBILE_CAR_WASH' ? 'New wash' : 'New job'}</h1>
 
         <JobForm
+          mobileCarWash={tenant.industry === 'MOBILE_CAR_WASH'}
           client={{
             id: client.id,
             name: displayName(client),

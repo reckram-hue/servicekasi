@@ -15,11 +15,13 @@ export function AddVisitForm({
   technicians,
   defaultDate,
   visit,
+  mobileCarWash = false,
 }: {
   jobId: string;
   technicians: { id: string; name: string }[];
   defaultDate: string;
   visit?: ExistingVisit;
+  mobileCarWash?: boolean;
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(visit ? updateVisitAction : addVisitAction, undefined);
   const [selected, setSelected] = useState<string[]>(visit?.technicianIds ?? []);
@@ -28,7 +30,7 @@ export function AddVisitForm({
     <form action={action} className={visit ? 'mt-3' : 'rounded-xl border border-slate-800 p-4'}>
       {visit ? <input type="hidden" name="visitId" value={visit.id} /> : <input type="hidden" name="jobId" value={jobId} />}
       <input type="hidden" name="technicianIdsJson" value={JSON.stringify(selected)} />
-      {!visit && <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-slate-500">Add a one-off visit</h2>}
+      {!visit && <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-slate-500">{mobileCarWash ? 'Schedule a wash visit' : 'Add a one-off visit'}</h2>}
       <FormMessage error={state?.error} ok={state?.ok} />
 
       <div className="mb-3 grid grid-cols-3 gap-2">
@@ -46,10 +48,10 @@ export function AddVisitForm({
         </label>
       </div>
 
-      <TechnicianPicker technicians={technicians} selected={selected} onChange={setSelected} />
+      <TechnicianPicker technicians={technicians} selected={selected} onChange={setSelected} mobileCarWash={mobileCarWash} />
 
       <label className="mb-4 block">
-        <span className="mb-1 block text-sm text-slate-300">Instructions for the technician (optional)</span>
+        <span className="mb-1 block text-sm text-slate-300">{mobileCarWash ? 'Instructions for the wash team (optional)' : 'Instructions for the technician (optional)'}</span>
         <textarea name="instructions" rows={2} maxLength={2000} defaultValue={visit?.instructions} className={INPUT} />
       </label>
 

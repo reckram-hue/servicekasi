@@ -145,7 +145,7 @@ export async function addExpenseCategoryAction(_: FormState, formData: FormData)
   if (!parsed.success) return { fieldErrors: z.flattenError(parsed.error).fieldErrors };
 
   const db = tenantDb(tenant.id);
-  await ensureDefaultExpenseCategories(db, tenant.id);
+  await ensureDefaultExpenseCategories(db, tenant.id, tenant.industry);
 
   const ledgerAccount = await db.ledgerAccount.create({
     data: { tenantId: tenant.id, kind: 'EXPENSE', code: `USR-${randomUUID().slice(0, 6).toUpperCase()}`, name: parsed.data.name },
@@ -216,7 +216,7 @@ export async function addTransferAction(_: FormState, formData: FormData): Promi
 
   let interestCategory: { ledgerAccountId: string } | null = null;
   if (interestCents && interestCents > 0) {
-    await ensureDefaultExpenseCategories(db, tenant.id);
+    await ensureDefaultExpenseCategories(db, tenant.id, tenant.industry);
     interestCategory = await db.expenseCategory.findFirst({ where: { name: 'Interest' }, select: { ledgerAccountId: true } });
   }
 

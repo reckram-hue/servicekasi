@@ -11,6 +11,7 @@ import { Sidebar } from '@/components/Sidebar';
 export function AppChrome({
   userName,
   businessName,
+  mobileCarWash = false,
   role,
   logout,
   securityReminder,
@@ -22,6 +23,7 @@ export function AppChrome({
 }: {
   userName: string;
   businessName: string;
+  mobileCarWash?: boolean;
   role: Role;
   logout: () => Promise<void>;
   securityReminder: boolean;
@@ -43,6 +45,7 @@ export function AppChrome({
       <Sidebar
         userName={userName}
         businessName={businessName}
+        mobileCarWash={mobileCarWash}
         role={role}
         logout={logout}
         isCollapsed={isCollapsed}

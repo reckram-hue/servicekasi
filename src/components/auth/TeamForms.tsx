@@ -24,7 +24,7 @@ const LANGUAGES: [string, string][] = [
   ['fr', 'Français'],
 ];
 
-export function AddTechnicianForm() {
+export function AddTechnicianForm({ mobileCarWash = false }: { mobileCarWash?: boolean } = {}) {
   const [state, action, pending] = useActionState(addTechnicianAction, undefined);
   const e = state?.fieldErrors;
   return (
@@ -55,7 +55,7 @@ export function AddTechnicianForm() {
           ))}
         </select>
       </label>
-      <SubmitButton pending={pending}>Add technician</SubmitButton>
+      <SubmitButton pending={pending}>{mobileCarWash ? 'Add wash team member' : 'Add technician'}</SubmitButton>
     </form>
   );
 }

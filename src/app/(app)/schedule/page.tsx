@@ -69,7 +69,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   return (
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
       <div className="mx-auto max-w-4xl">
-        <h1 className="mb-6 text-2xl font-bold">Schedule</h1>
+        <h1 className="mb-6 text-2xl font-bold">{tenant.industry === 'MOBILE_CAR_WASH' ? 'Wash planner' : 'Schedule'}</h1>
 
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">

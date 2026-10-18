@@ -13,6 +13,7 @@ export function starterItemRows(industry: Industry, skipNames: Iterable<string> 
       name: item.name,
       unitPriceCents: Math.round(item.priceRands * 100),
       taxable: true,
+      ...(item.active === false ? { active: false } : {}),
     }));
 }
 

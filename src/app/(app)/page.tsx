@@ -52,6 +52,7 @@ export default async function Home() {
 
   return (
     <AppShell
+      carWashBusiness={tenant.industry === 'MOBILE_CAR_WASH' ? { businessName: tenant.tradingName || tenant.businessName, logoUrl: tenant.logoUrl } : undefined}
       moneyOwed={{ ...moneyOwed, currencyCode: tenant.currencyCode }}
       checklist={showChecklist ? checklistItems! : undefined}
       jobs={jobs}
