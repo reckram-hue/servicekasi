@@ -19,7 +19,7 @@ for (const path of ['/book/mobile-car-wash', '/book/mobile-car-wash/', '/q/test-
     }
   });
 }
-for (const path of ['/bookkeeping', '/bookkeeping/expenses/new', '/my-day', '/jobs', '/book-other']) {
+for (const path of ['/bookkeeping', '/bookkeeping/expenses/new', '/my-day', '/jobs', '/book-other', '/settings/access', '/switch-business']) {
   test(`logged-out visitors still cannot reach ${path}`, () => {
     const response = proxy(new NextRequest(`https://servicekasi.test${path}`));
     assert.equal(response.status, 307);

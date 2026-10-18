@@ -67,7 +67,9 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/clients', label: 'Clients', icon: Users, group: 'Management' },
   { href: '/messages', label: 'Messages', icon: MessageCircle, group: 'Management' },
   { href: '/team', label: 'Team', icon: UserCog, group: 'Management' },
+  { href: '/switch-business', label: 'Switch business', icon: Building2, group: 'Management' },
   { href: '/settings/business', label: 'Business', icon: Building2, group: 'Settings' },
+  { href: '/settings/access', label: 'Helper access', icon: Users, group: 'Settings' },
   { href: '/settings/price-list', label: 'Price list', icon: ListTree, group: 'Settings' },
   { href: '/settings/payments', label: 'Payments', icon: CreditCard, group: 'Settings' },
   { href: '/settings/security', label: 'Security', icon: ShieldCheck, group: 'Settings' },
@@ -104,6 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       (i.href !== '/getting-started' || showGettingStarted) &&
       (i.href !== '/my-day' || showMyDay) &&
       (i.href !== '/settings/package' || role === 'OWNER') &&
+      (i.href !== '/settings/access' || role === 'OWNER') &&
       (i.group !== 'Platform' || isPlatformAdmin)
   );
   const active = activeHref(navItems, pathname);

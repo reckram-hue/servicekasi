@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
 import { getOnboardingChecklist, isChecklistComplete } from '@/lib/onboarding/checklist';
@@ -5,7 +6,7 @@ import { showOnboardingChecklistAction } from '@/lib/onboarding/actions';
 import { GettingStartedCard } from '@/components/onboarding/GettingStartedCard';
 
 export default async function GettingStartedPage() {
-  const { tenant, user } = await requireRole(['OWNER', 'ADMIN']);
+  const { tenant, user, membership } = await requireRole(['OWNER', 'ADMIN']);
   const db = tenantDb(tenant.id);
   const items = await getOnboardingChecklist(db, tenant, user);
   const complete = isChecklistComplete(items);
@@ -27,6 +28,13 @@ export default async function GettingStartedPage() {
           </form>
         )}
         <GettingStartedCard items={items} />
+        {membership.role === 'OWNER' && (
+          <div className="mt-6 rounded-xl border border-slate-800 p-4 text-sm text-slate-400">
+            Want someone to guide you through setup?{' '}
+            <Link href="/settings/access" className="font-medium text-amber-400 hover:underline">Grant helper access</Link>
+            {' '}so they can assist using their own login. You can revoke access whenever you like.
+          </div>
+        )}
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ const ROLE_LABEL = { OWNER: 'Owner', ADMIN: 'Admin', DISPATCHER: 'Office', TECHN
 export default async function TeamPage() {
   const { tenant } = await requireRole(['OWNER', 'ADMIN']);
   const members = await tenantDb(tenant.id).membership.findMany({
+    where: { active: true },
     include: { user: true },
     orderBy: { createdAt: 'asc' },
   });

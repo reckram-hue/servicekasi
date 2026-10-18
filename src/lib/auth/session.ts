@@ -66,21 +66,24 @@ export async function deleteCurrentSession() {
   store.delete(SESSION_COOKIE);
 }
 
-/**
- * The signed-in person and the business they're working in. Redirects to
- * /login if not signed in. Use at the top of every protected page and action.
- */
-export const requireAuth = cache(async () => {
+/** A completed login, even if the current business membership was revoked. */
+export const requireSignedIn = cache(async () => {
   const session = await getRawSession();
   if (!session) redirect('/login');
   if (session.mfaPending) redirect('/login/verify');
-  if (!session.activeTenantId) redirect('/login?error=no-business');
+  return session;
+});
+
+/** The signed-in person and their active, permitted business membership. */
+export const requireAuth = cache(async () => {
+  const session = await requireSignedIn();
+  if (!session.activeTenantId) redirect('/switch-business');
 
   const membership = await prisma.membership.findUnique({
     where: { tenantId_userId: { tenantId: session.activeTenantId, userId: session.userId } },
     include: { tenant: true },
   });
-  if (!membership || !membership.active) redirect('/login?error=no-access');
+  if (!membership || !membership.active) redirect('/switch-business');
   if ((await pausedMembershipIds(membership.tenant)).has(membership.id)) {
     await deleteCurrentSession();
     redirect('/login?error=paused');
