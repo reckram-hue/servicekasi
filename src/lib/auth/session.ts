@@ -98,6 +98,14 @@ export async function requireRole(allowed: Role[] = OFFICE_ROLES) {
   return auth;
 }
 
+/** Field actions also allow office users who do fieldwork; callers must still check visit assignment. */
+export async function requireFieldworker() {
+  const auth = await requireAuth();
+  const { role, doesFieldwork } = auth.membership;
+  if (role !== 'TECHNICIAN' && !(OFFICE_ROLES.includes(role) && doesFieldwork)) redirect('/');
+  return auth;
+}
+
 /**
  * Gates the cross-tenant "every business on the platform" admin pages —
  * ServiceKasi staff only, separate from any business's own OWNER/ADMIN role.

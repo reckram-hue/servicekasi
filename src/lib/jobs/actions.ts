@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { JobPriority } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { tenantDb, nextDocumentNumber, type TenantDb } from '@/lib/db';
-import { requireAuth, requireRole } from '@/lib/auth/session';
+import { requireAuth, requireFieldworker, requireRole } from '@/lib/auth/session';
 import { todayDateStr, zonedDateTime } from '@/lib/dates';
 import { buildRule } from '@/lib/recurrence';
 import { computeStatusFromVisits, syncJobStatus } from '@/lib/jobs/status';
@@ -199,13 +199,14 @@ async function loadOwnVisit(db: TenantDb, visitId: string, membershipId: string)
 
 function revalidateVisit(jobId: string) {
   revalidatePath('/');
+  revalidatePath('/my-day');
   revalidatePath(`/jobs/${jobId}`);
   revalidatePath('/jobs');
   revalidatePath('/schedule');
 }
 
 export async function startTravelAction(formData: FormData): Promise<void> {
-  const { tenant, membership } = await requireRole(['TECHNICIAN']);
+  const { tenant, membership } = await requireFieldworker();
   const visitId = String(formData.get('visitId') ?? '');
 
   const db = tenantDb(tenant.id);
@@ -217,7 +218,7 @@ export async function startTravelAction(formData: FormData): Promise<void> {
 }
 
 export async function arriveAction(formData: FormData): Promise<void> {
-  const { tenant, membership } = await requireRole(['TECHNICIAN']);
+  const { tenant, membership } = await requireFieldworker();
   const visitId = String(formData.get('visitId') ?? '');
 
   const db = tenantDb(tenant.id);
@@ -239,7 +240,7 @@ function decodeDataUrl(dataUrl: string): { contentType: 'image/png'; buffer: Buf
 }
 
 export async function completeVisitAction(formData: FormData): Promise<void> {
-  const { tenant, membership } = await requireRole(['TECHNICIAN']);
+  const { tenant, membership } = await requireFieldworker();
   const visitId = String(formData.get('visitId') ?? '');
   const notes = String(formData.get('notes') ?? '').trim().slice(0, NOTES_MAX);
   const signedByName = String(formData.get('signedByName') ?? '').trim().slice(0, 200);
@@ -279,7 +280,7 @@ const PHOTO_KINDS = ['BEFORE', 'AFTER', 'PARTS'] as const;
 
 /** Technician adds a photo while on site. Retry-safe: the same clientGeneratedId is never stored twice. */
 export async function addVisitPhotoAction(formData: FormData): Promise<{ error?: string } | void> {
-  const { tenant, membership } = await requireRole(['TECHNICIAN']);
+  const { tenant, membership } = await requireFieldworker();
   const visitId = String(formData.get('visitId') ?? '');
   const kind = String(formData.get('kind') ?? '');
   const clientGeneratedId = String(formData.get('clientGeneratedId') ?? '');
@@ -343,7 +344,7 @@ export async function deleteAttachmentAction(formData: FormData): Promise<void> 
 }
 
 export async function markNoAccessAction(formData: FormData): Promise<void> {
-  const { tenant, membership } = await requireRole(['TECHNICIAN']);
+  const { tenant, membership } = await requireFieldworker();
   const visitId = String(formData.get('visitId') ?? '');
   const notes = String(formData.get('notes') ?? '').trim().slice(0, NOTES_MAX);
 

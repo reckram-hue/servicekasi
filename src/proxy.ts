@@ -6,8 +6,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 // only line of defence.
 // /q/<token> (quote approval), /i/<token> (invoice) and /eta/<token> ("who's
 // coming") are client-facing pages with no login, reached via a WhatsApp
-// link, so they must stay public.
-const PUBLIC_PATHS = ['/login', '/signup', '/q', '/i', '/eta', '/u'];
+// link, so they must stay public. /book/<slug> accepts new customer enquiries.
+const PUBLIC_PATHS = ['/login', '/signup', '/book', '/q', '/i', '/eta', '/u'];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
