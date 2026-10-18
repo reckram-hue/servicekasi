@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   createClientAction,
   toggleArchiveClientAction,
@@ -230,7 +230,10 @@ export function ClientsPageClient({ clients, query }: { clients: ClientRow[]; qu
                   {c.preferredLanguage}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <Link href={`/clients/${c.id}#whatsapp-message`} className="rounded-md bg-emerald-900 px-3 py-2 text-xs font-medium text-emerald-100 hover:bg-emerald-800">
+                  WhatsApp message
+                </Link>
                 <Link
                   href={`/quotes/new?client=${c.id}`}
                   className="rounded-md bg-slate-800 px-3 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700"

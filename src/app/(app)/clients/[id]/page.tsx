@@ -8,6 +8,8 @@ import { formatMoney } from '@/lib/money';
 import { formatDateStr, localDateStr, localTimeStr } from '@/lib/dates';
 import { normalizeSaPhone } from '@/lib/southAfrica';
 import { EditClientButton } from '@/components/clients/EditClientButton';
+import { WhatsAppComposer } from '@/components/messaging/WhatsAppComposer';
+import { getTemplates } from '@/lib/messaging/templates';
 
 const DOT: Record<NonNullable<TimelineEvent['tone']> | 'plain', string> = {
   good: 'bg-emerald-400',
@@ -28,7 +30,7 @@ const KIND_LABEL: Record<TimelineEvent['kind'], string> = {
 const ACTION = 'rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 hover:bg-slate-700';
 
 export default async function ClientPage({ params }: { params: Promise<{ id: string }> }) {
-  const { tenant } = await requireRole();
+  const { tenant, membership } = await requireRole();
   const { id } = await params;
   const tz = tenant.timezone;
 
@@ -100,6 +102,16 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
             </a>
           )}
         </div>
+
+        <WhatsAppComposer
+          key={client.id}
+          templates={getTemplates(tenant.whatsappTemplates, tenant.industry === 'MOBILE_CAR_WASH')}
+          customer={client.firstName}
+          business={tenant.tradingName || tenant.businessName}
+          reviewLink={tenant.googleReviewUrl}
+          phone={client.phone}
+          canEditTemplates={['OWNER', 'ADMIN'].includes(membership.role)}
+        />
 
         <div className="mb-6 grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3">
           <div className="flex items-baseline justify-between rounded-xl border border-slate-800 bg-slate-900 px-4 py-3 sm:block sm:p-4">

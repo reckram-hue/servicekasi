@@ -4,7 +4,7 @@ import { tenantDb } from '@/lib/db';
 import { canUse, minimumPlanFor, PLAN_LABEL } from '@/lib/plans/plans';
 
 export default async function MessagesPage() {
-  const { tenant } = await requireRole();
+  const { tenant, membership } = await requireRole();
   const allowed = canUse(tenant, 'whatsappBroadcasts');
 
   const broadcasts = allowed
@@ -26,6 +26,15 @@ export default async function MessagesPage() {
             </Link>
           )}
         </div>
+
+        <section className="mb-6 rounded-xl border border-slate-800 bg-slate-900 p-4">
+          <h2 className="font-semibold">Personal WhatsApp messages</h2>
+          <p className="mt-2 text-sm text-slate-400">Choose from four editable templates on a customer’s profile. Their first name is filled in automatically. Copy the message or open WhatsApp, then send it yourself.</p>
+          <div className="mt-3 flex flex-wrap gap-4 text-sm text-amber-400">
+            <Link href="/clients" className="underline">Choose a customer</Link>
+            {['OWNER', 'ADMIN'].includes(membership.role) && <Link href="/messages/templates" className="underline">Edit four templates</Link>}
+          </div>
+        </section>
 
         {!allowed && (
           <p className="rounded-xl border border-dashed border-slate-800 p-6 text-center text-slate-400">
