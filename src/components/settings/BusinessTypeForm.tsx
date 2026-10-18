@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import type { Industry } from '@prisma/client';
 import { INDUSTRIES, INDUSTRY_LABELS } from '@/lib/onboarding/industries';
 import { updateBusinessTypeAction } from '@/lib/settings/businessTypeActions';
@@ -9,8 +9,9 @@ import { Select, SubmitButton } from '@/components/auth/ui';
 
 export function BusinessTypeForm({ industry }: { industry: Industry | null }) {
   const [state, action, pending] = useActionState(updateBusinessTypeAction, undefined);
+  const [selectedIndustry, setSelectedIndustry] = useState(industry ?? '');
   return <form action={action} className="mb-6 rounded-xl border border-slate-800 p-4">
-    <Select label="Business type" name="industry" defaultValue={industry ?? ''} required>
+    <Select label="Business type" name="industry" value={selectedIndustry} onChange={(event) => setSelectedIndustry(event.target.value)} required>
       <option value="" disabled>Choose a business type…</option>
       {INDUSTRIES.map((type) => <option key={type} value={type}>{INDUSTRY_LABELS[type]}</option>)}
     </Select>
