@@ -12,7 +12,8 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const client = require('@prisma/client');
 const industries = load('src/lib/onboarding/industries.ts');
 const starters = load('src/lib/onboarding/starterPriceList.ts', { 'server-only': {}, './industries': industries });
-const ui = load('src/components/auth/ui.tsx', { react: React, 'react/jsx-runtime': jsx, 'lucide-react': icons });
+const dateInputs = load('src/components/ui/DateTimeInputs.tsx', { react: React, 'react/jsx-runtime': jsx });
+const ui = load('src/components/auth/ui.tsx', { react: React, 'react/jsx-runtime': jsx, 'lucide-react': icons, '@/components/ui/DateTimeInputs': dateInputs });
 const render = (Component, props) => renderToStaticMarkup(React.createElement(Component, props));
 
 test('mobile car wash is accepted by the generated enum and has only inactive unpriced templates', () => {
@@ -159,6 +160,7 @@ test('public booking only adds the safe industry field to public tenant data', a
 
 test('wash and generic booking forms use their respective prompts without changing submitted field names', () => {
   const { PublicBookingForm } = load('src/components/booking/PublicBookingForm.tsx', {
+    '@/components/ui/DateTimeInputs': dateInputs,
     react: React, 'react/jsx-runtime': jsx, '@/lib/requests/publicActions': { submitServiceRequestAction: async () => {} },
   });
   const wash = render(PublicBookingForm, { slug: 'wash', businessName: 'Example Wash', mobileCarWash: true });

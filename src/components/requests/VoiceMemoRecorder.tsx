@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { DateInput, TimeInput } from '@/components/ui/DateTimeInputs';
 import { Mic, Square } from 'lucide-react';
 import { createVoiceRequestAction, type VoiceRequestFormState } from '@/lib/requests/actions';
 import { TechnicianPicker } from '@/components/jobs/TechnicianPicker';
@@ -242,6 +243,7 @@ export function VoiceMemoRecorder({ technicians = [], allowed = true }: { techni
           )}
 
           <input type="hidden" name="technicianIdsJson" value={JSON.stringify(selectedTechs)} />
+          <input type="hidden" name="schedule" value={schedule ? 'yes' : 'no'} />
 
           {technicians.length > 0 && (
             <label className="mb-4 flex items-center gap-2 text-sm text-slate-300">
@@ -252,17 +254,16 @@ export function VoiceMemoRecorder({ technicians = [], allowed = true }: { techni
 
           {schedule ? (
             <>
-              <div className="mb-3 grid grid-cols-2 gap-2">
+              <div className="mb-3 grid gap-3 sm:grid-cols-2">
                 <label className="block">
                   <span className="mb-1 block text-sm font-medium text-slate-300">Date</span>
-                  <input name="visitDate" type="date" required defaultValue={draft?.requestedDate ?? ''} className={`${FIELD} ${border('requestedDate')}`} />
+                  <DateInput name="visitDate" required defaultValue={draft?.requestedDate ?? ''} className={`${FIELD} ${border('requestedDate')}`} />
                   <Unsure show={unsure('requestedDate')} />
                 </label>
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-300">Start time</span>
-                  <input name="visitStartTime" type="time" required defaultValue={draft?.requestedTime ?? ''} className={`${FIELD} ${border('requestedTime')}`} />
+                <div>
+                  <TimeInput label="Start time" name="visitStartTime" required defaultValue={draft?.requestedTime ?? ''} />
                   <Unsure show={unsure('requestedTime')} />
-                </label>
+                </div>
               </div>
               <label className="mb-3 block">
                 <span className="mb-1 block text-sm font-medium text-slate-300">Priority</span>
@@ -280,7 +281,7 @@ export function VoiceMemoRecorder({ technicians = [], allowed = true }: { techni
           ) : (
             <label className="mb-4 block">
               <span className="mb-1 block text-sm font-medium text-slate-300">Preferred date (optional)</span>
-              <input name="preferredDate" type="date" defaultValue={draft?.requestedDate ?? ''} className={`${FIELD} ${border('requestedDate')}`} />
+              <DateInput name="preferredDate" defaultValue={draft?.requestedDate ?? ''} className={`${FIELD} ${border('requestedDate')}`} />
               <Unsure show={unsure('requestedDate')} />
             </label>
           )}

@@ -227,7 +227,8 @@ test('membership recheck denies a stale session still pointing at a revoked busi
 const React = require('react');
 const jsx = require('react/jsx-runtime');
 const { renderToStaticMarkup } = require('react-dom/server');
-const controls = load('src/components/auth/ui.tsx', { react: React, 'react/jsx-runtime': jsx, 'lucide-react': require('lucide-react') });
+const dateInputs = load('src/components/ui/DateTimeInputs.tsx', { react: React, 'react/jsx-runtime': jsx });
+const controls = load('src/components/auth/ui.tsx', { react: React, 'react/jsx-runtime': jsx, 'lucide-react': require('lucide-react'), '@/components/ui/DateTimeInputs': dateInputs });
 const forms = load('src/components/auth/BusinessAccessForms.tsx', {
   react: React, 'react/jsx-runtime': jsx, '@/components/auth/ui': controls,
   '@/lib/auth/businessAccess': { grantBusinessAccessAction: async () => {}, revokeBusinessAccessAction: async () => {}, switchBusinessAction: async () => {} },

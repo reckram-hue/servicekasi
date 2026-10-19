@@ -72,7 +72,7 @@ export default async function NewQuotePage({ searchParams }: { searchParams: Pro
             quoteTerms: tenant.quoteTerms,
           }}
           catalogItems={catalogItems}
-          defaultValidUntil={isoDateDaysFromNow(tenant.defaultQuoteValidDays)}
+          defaultValidUntil={isoDateDaysFromNow(tenant.defaultQuoteValidDays, tenant.timezone)}
         />
       </div>
     </div>

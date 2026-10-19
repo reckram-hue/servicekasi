@@ -191,9 +191,9 @@ export function InvoiceBuilder({
         <div className="space-y-3">
           {lines.map((row) => (
             <div key={row.key} className="rounded-lg border border-slate-800 bg-slate-950/50 p-3">
-              <div className="mb-2 grid grid-cols-[7rem_1fr_auto] gap-2">
+              <div className="mb-2 grid grid-cols-1 sm:grid-cols-[7rem_1fr_auto] gap-2">
                 <select
-                  value={row.type}
+                  aria-label="Line type" value={row.type}
                   onChange={(ev) => updateLine(row.key, { type: ev.target.value as CatalogItemType })}
                   className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-2 text-sm text-slate-100 focus:border-amber-400 focus:outline-none"
                 >
@@ -206,7 +206,7 @@ export function InvoiceBuilder({
                 <input
                   value={row.description}
                   onChange={(ev) => updateLine(row.key, { description: ev.target.value })}
-                  placeholder="Description"
+                  aria-label="Line description" placeholder="Description"
                   className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-amber-400 focus:outline-none"
                 />
                 <button
@@ -218,25 +218,25 @@ export function InvoiceBuilder({
                   ✕
                 </button>
               </div>
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <input
                   value={row.quantity}
                   onChange={(ev) => updateLine(row.key, { quantity: ev.target.value })}
-                  placeholder="Qty"
+                  aria-label="Quantity" placeholder="Qty"
                   inputMode="decimal"
                   className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-amber-400 focus:outline-none"
                 />
                 <input
                   value={row.unitCostRands}
                   onChange={(ev) => updateLine(row.key, { unitCostRands: ev.target.value })}
-                  placeholder="Cost"
+                  aria-label="Unit cost" placeholder="Cost"
                   inputMode="decimal"
                   className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-amber-400 focus:outline-none"
                 />
                 <input
                   value={row.unitPriceRands}
                   onChange={(ev) => updateLine(row.key, { unitPriceRands: ev.target.value })}
-                  placeholder="Price"
+                  aria-label="Unit price" placeholder="Price"
                   inputMode="decimal"
                   className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder-slate-500 focus:border-amber-400 focus:outline-none"
                 />

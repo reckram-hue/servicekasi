@@ -79,10 +79,11 @@ export async function markRecipientSentAction(formData: FormData): Promise<void>
   const broadcastId = String(formData.get('broadcastId') ?? '');
 
   const db = tenantDb(tenant.id);
-  await db.broadcastRecipient.update({
-    where: { id },
+  const updated = await db.broadcastRecipient.updateMany({
+    where: { id, broadcastId, status: { in: ['PENDING', 'FAILED'] } },
     data: { status: 'SENT', sentAt: new Date() },
   });
+  if (updated.count === 0) return;
 
   const remaining = await db.broadcastRecipient.count({ where: { broadcastId, status: 'PENDING' } });
   if (remaining === 0) {

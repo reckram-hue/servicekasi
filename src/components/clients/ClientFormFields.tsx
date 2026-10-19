@@ -44,12 +44,12 @@ export function ClientFormFields({
 }) {
   return (
     <>
-      <div className="grid grid-cols-2 gap-x-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
         <Field label="First name" name="firstName" required defaultValue={defaults?.firstName} errors={errors?.firstName} />
         <Field label="Last name" name="lastName" defaultValue={defaults?.lastName} errors={errors?.lastName} />
       </div>
       <Field label="Company (optional)" name="companyName" defaultValue={defaults?.companyName} errors={errors?.companyName} />
-      <div className="grid grid-cols-2 gap-x-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
         <Field
           label="Cellphone"
           name="phone"
@@ -79,11 +79,11 @@ export function ClientFormFields({
       <fieldset className="mb-4 rounded-lg border border-slate-800 p-3">
         <legend className="px-1 text-xs font-medium uppercase tracking-wide text-slate-500">Address (optional)</legend>
         <Field label="Street" name="street" defaultValue={defaults?.street} errors={errors?.street} />
-        <div className="grid grid-cols-2 gap-x-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
           <Field label="Suburb" name="suburb" defaultValue={defaults?.suburb} errors={errors?.suburb} />
           <Field label="City" name="city" defaultValue={defaults?.city} errors={errors?.city} />
         </div>
-        <div className="grid grid-cols-2 gap-x-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
           <Field label="Province/region" name="region" defaultValue={defaults?.region} errors={errors?.region} />
           <Field label="Postal code" name="postalCode" defaultValue={defaults?.postalCode} errors={errors?.postalCode} />
         </div>

@@ -2,13 +2,14 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { z } from 'zod';
 import type { JobPriority } from '@prisma/client';
 import { requireRole } from '@/lib/auth/session';
 import { prisma } from '@/lib/prisma';
 import { tenantDb, nextDocumentNumber } from '@/lib/db';
 import { createClient } from '@/lib/clients/create';
 import { normalizeSaPhone } from '@/lib/southAfrica';
-import { zonedDateTime } from '@/lib/dates';
+import { isCalendarDate, zonedDateTime } from '@/lib/dates';
 import { syncJobStatus } from '@/lib/jobs/status';
 import { canUse } from '@/lib/plans/plans';
 
@@ -47,12 +48,14 @@ export async function createVoiceRequestAction(_: VoiceRequestFormState, formDat
 
   const normalizedPhone = contactPhone ? normalizeSaPhone(contactPhone) : null;
 
-  if (visitDate && visitStartTime) {
+  const scheduling = formData.get('schedule') === 'yes' || !!visitDate || !!visitStartTime;
+  if (scheduling) {
+    if (!isCalendarDate(visitDate)) return { error: 'Choose a valid appointment date.' };
     if (!VISIT_TIME.test(visitStartTime)) return { error: 'Choose a valid start time.' };
 
     let technicianIds: string[];
     try {
-      technicianIds = [...new Set(JSON.parse(technicianIdsJson) as string[])];
+      technicianIds = [...new Set(z.array(z.string().uuid()).parse(JSON.parse(technicianIdsJson)))];
     } catch {
       technicianIds = [];
     }
@@ -65,34 +68,35 @@ export async function createVoiceRequestAction(_: VoiceRequestFormState, formDat
     const startsAt = zonedDateTime(visitDate, visitStartTime);
     const endsAt = new Date(startsAt.getTime() + DEFAULT_VISIT_MINUTES * 60_000);
 
-    // Same phone, same client — don't create a duplicate every time a returning caller phones in.
-    const existingClient = normalizedPhone ? await db.client.findFirst({ where: { tenantId: tenant.id, phone: normalizedPhone } }) : null;
-    const clientId = existingClient
-      ? existingClient.id
-      : (
-          await createClient(db, tenant, {
-            firstName: (contactName || 'New client').trim().split(/\s+/)[0],
-            lastName: contactName.trim().split(/\s+/).slice(1).join(' ') || undefined,
-            phone: contactPhone || undefined,
-            preferredLanguage: 'en',
-            notes: description,
-          })
-        ).id;
-
-    const request = await db.serviceRequest.create({
-      data: {
-        tenantId: tenant.id,
-        source: 'VOICE_MEMO',
-        status: 'CONVERTED',
-        clientId,
-        contactName: contactName || null,
-        contactPhone: normalizedPhone,
-        description,
-        transcript: transcript || null,
-      },
-    });
-
+    // The client, request, job and visit must all succeed together, so a failed booking leaves no orphan records.
     const job = await prisma.$transaction(async (tx) => {
+      // Same phone, same client — don't create a duplicate every time a returning caller phones in.
+      const existingClient = normalizedPhone ? await tx.client.findFirst({ where: { tenantId: tenant.id, phone: normalizedPhone } }) : null;
+      const clientId = existingClient
+        ? existingClient.id
+        : (
+            await createClient(tx, tenant, {
+              firstName: (contactName || 'New client').trim().split(/\s+/)[0],
+              lastName: contactName.trim().split(/\s+/).slice(1).join(' ') || undefined,
+              phone: contactPhone || undefined,
+              preferredLanguage: 'en',
+              notes: description,
+            })
+          ).id;
+
+      const request = await tx.serviceRequest.create({
+        data: {
+          tenantId: tenant.id,
+          source: 'VOICE_MEMO',
+          status: 'CONVERTED',
+          clientId,
+          contactName: contactName || null,
+          contactPhone: normalizedPhone,
+          description,
+          transcript: transcript || null,
+        },
+      });
+
       const number = await nextDocumentNumber(tx, tenant.id, 'JOB');
       const created = await tx.job.create({
         data: {
@@ -126,8 +130,8 @@ export async function createVoiceRequestAction(_: VoiceRequestFormState, formDat
 
   let preferredDate: Date | undefined;
   if (preferredDateRaw) {
-    const parsed = new Date(`${preferredDateRaw}T00:00:00Z`);
-    if (!Number.isNaN(parsed.getTime())) preferredDate = parsed;
+    if (!isCalendarDate(preferredDateRaw)) return { error: 'Choose a valid preferred date.' };
+    preferredDate = new Date(`${preferredDateRaw}T00:00:00Z`);
   }
 
   await db.serviceRequest.create({

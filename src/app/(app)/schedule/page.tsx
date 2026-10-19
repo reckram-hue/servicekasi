@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { requireRole } from '@/lib/auth/session';
 import { tenantDb } from '@/lib/db';
-import { addDaysToDateStr, dateStrDayOfWeek, localDateStr, todayDateStr, zonedDateTime } from '@/lib/dates';
+import { addDaysToDateStr, dateStrDayOfWeek, isCalendarDate, localDateStr, todayDateStr, zonedDateTime } from '@/lib/dates';
+import { DateInput } from '@/components/ui/DateTimeInputs';
 import { publicHolidayName } from '@/lib/holidays';
 import { topUpRecurringVisits } from '@/lib/jobs/recurring';
 
@@ -10,8 +11,6 @@ function displayName(c: { firstName: string; lastName: string | null; companyNam
   return c.companyName ? `${name} (${c.companyName})` : name;
 }
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
 export default async function SchedulePage({ searchParams }: { searchParams: Promise<{ date?: string; range?: string }> }) {
   const { tenant } = await requireRole();
   const { date: dateParam, range: rangeParam } = await searchParams;
@@ -19,7 +18,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   await topUpRecurringVisits(tenant.id, tenant.timezone);
 
   const todayStr = todayDateStr(tenant.timezone);
-  const date = dateParam && DATE_RE.test(dateParam) ? dateParam : todayStr;
+  const date = dateParam && isCalendarDate(dateParam) && dateParam >= '1900-01-01' && dateParam <= '2100-12-31' ? dateParam : todayStr;
   const range: 'day' | 'week' = rangeParam === 'week' ? 'week' : 'day';
 
   let rangeStartStr = date;
@@ -50,10 +49,10 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   for (const t of technicians) byTech.set(t.id, []);
   const unassigned: typeof visits = [];
   for (const v of visits) {
-    if (v.assignments.length === 0) unassigned.push(v);
+    // Keep appointments visible when their previously assigned team members become inactive.
+    if (!v.assignments.some((a) => byTech.has(a.membershipId))) unassigned.push(v);
     for (const a of v.assignments) {
-      if (!byTech.has(a.membershipId)) byTech.set(a.membershipId, []);
-      byTech.get(a.membershipId)!.push(v);
+      byTech.get(a.membershipId)?.push(v);
     }
   }
 
@@ -70,6 +69,14 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
     <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
       <div className="mx-auto max-w-4xl">
         <h1 className="mb-6 text-2xl font-bold">{tenant.industry === 'MOBILE_CAR_WASH' ? 'Wash planner' : 'Schedule'}</h1>
+
+        <form action="/schedule" method="GET" className="mb-4 flex flex-wrap items-end gap-3">
+          <input type="hidden" name="range" value={range} />
+          <label className="min-w-0 flex-1 text-sm text-slate-300">Go to date
+            <DateInput name="date" key={date} defaultValue={date} min="1900-01-01" max="2100-12-31" required className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5" />
+          </label>
+          <button className="min-h-11 rounded-lg bg-amber-500 px-4 py-2 font-semibold text-slate-950">Show date</button>
+        </form>
 
         <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -108,7 +115,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
           )}
         </p>
 
-        {technicians.length === 0 ? (
+        {technicians.length === 0 && unassigned.length === 0 ? (
           <p className="rounded-xl border border-dashed border-slate-800 p-10 text-center text-slate-500">
             Add a technician on the Team page to start scheduling.
           </p>
@@ -116,7 +123,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
           <div className="space-y-4">
             {[
               ...technicians.map((t) => ({ key: t.id, name: t.user.name, list: byTech.get(t.id) ?? [] })),
-              ...(unassigned.length > 0 ? [{ key: 'unassigned', name: 'Unassigned', list: unassigned }] : []),
+              ...(unassigned.length > 0 ? [{ key: 'unassigned', name: 'Needs assignment', list: unassigned }] : []),
             ].map(({ key, name, list }) => {
               return (
                 <div key={key} className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
@@ -126,7 +133,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
                   ) : (
                     <div className="space-y-2">
                       {list.map((v, i) => (
-                        <div key={v.id} className="flex items-center justify-between rounded-lg border border-slate-800 p-3">
+                        <div key={v.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 p-3">
                           <div>
                             <div className="text-sm font-medium text-slate-100">
                               {range === 'week' &&

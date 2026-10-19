@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react';
 import { addVisitAction, updateVisitAction, type FormState } from '@/lib/jobs/actions';
 import { FormMessage, SubmitButton } from '@/components/auth/ui';
 import { TechnicianPicker } from '@/components/jobs/TechnicianPicker';
+import { DateInput, TimeInput } from '@/components/ui/DateTimeInputs';
 
 const INPUT = 'w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 focus:border-amber-400 focus:outline-none';
 
@@ -32,20 +33,15 @@ export function AddVisitForm({
       <input type="hidden" name="technicianIdsJson" value={JSON.stringify(selected)} />
       {!visit && <h2 className="mb-3 text-sm font-medium uppercase tracking-wide text-slate-500">{mobileCarWash ? 'Schedule a wash visit' : 'Add a one-off visit'}</h2>}
       <FormMessage error={state?.error} ok={state?.ok} />
+      {state?.fieldErrors && <p role="alert" className="mb-3 text-sm text-red-300">{Object.values(state.fieldErrors).flat().filter(Boolean).join(' ')}</p>}
 
-      <div className="mb-3 grid grid-cols-3 gap-2">
+      <div className="mb-3 grid gap-3 sm:grid-cols-3">
         <label className="block">
           <span className="mb-1 block text-sm text-slate-300">Date</span>
-          <input name="date" type="date" defaultValue={visit?.date ?? defaultDate} required className={INPUT} />
+          <DateInput name="date" defaultValue={visit?.date ?? defaultDate} required className={INPUT} />
         </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-300">Start</span>
-          <input name="startTime" type="time" defaultValue={visit?.startTime} required className={INPUT} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-300">End</span>
-          <input name="endTime" type="time" defaultValue={visit?.endTime} required className={INPUT} />
-        </label>
+        <TimeInput label="Start" name="startTime" defaultValue={visit?.startTime} required />
+        <TimeInput label="End" name="endTime" defaultValue={visit?.endTime} required />
       </div>
 
       <TechnicianPicker technicians={technicians} selected={selected} onChange={setSelected} mobileCarWash={mobileCarWash} />

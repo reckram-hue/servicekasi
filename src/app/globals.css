@@ -1,1 +1,15 @@
 @import "tailwindcss";
+
+.date-picker { color-scheme: dark; }
+.date-picker::-webkit-date-and-time-value { text-align: left; }
+
+@media (max-width: 767px) {
+  /* 16px avoids iPhone focus zoom; full-sized controls are easier to use with a thumb. */
+  input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), select, textarea {
+    font-size: 16px;
+    min-width: 0;
+    max-width: 100%;
+  }
+  input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]), select, button, summary { min-height: 44px; }
+  button, a, select { touch-action: manipulation; }
+}

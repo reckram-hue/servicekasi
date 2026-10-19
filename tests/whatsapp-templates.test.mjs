@@ -108,6 +108,7 @@ function composerHarness(extra = {}) {
     useRef: () => ({ current: { focus() { selected.focused = true; }, select() { selected.selected = true; } } }),
   };
   const { WhatsAppComposer } = load('src/components/messaging/WhatsAppComposer.tsx', {
+    '@/components/ui/DateTimeInputs': load('src/components/ui/DateTimeInputs.tsx', { react: React, 'react/jsx-runtime': jsx }), '@/lib/dates': load('src/lib/dates.ts'),
     react: hooks, 'react/jsx-runtime': jsx, 'next/link': require('next/link'), '@/lib/messaging/templates': templates,
   });
   function render() { cursor = 0; return WhatsAppComposer({ templates: defaultTemplates(true), customer: 'Sarah', business: 'Eco4 Wash', reviewLink: ECO4_REVIEW_URL, phone: '0832121665', canEditTemplates: true, ...extra }); }

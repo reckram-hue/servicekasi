@@ -177,7 +177,7 @@ export default async function QuoteDetailPage({ params }: { params: Promise<{ id
               quoteTerms: tenant.quoteTerms,
             }}
             catalogItems={catalogItems}
-            defaultValidUntil={isoDateDaysFromNow(tenant.defaultQuoteValidDays)}
+            defaultValidUntil={isoDateDaysFromNow(tenant.defaultQuoteValidDays, tenant.timezone)}
             initial={{
               title: quote.title,
               notes: quote.notes ?? '',

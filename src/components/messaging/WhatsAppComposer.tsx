@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { renderTemplate, unresolvedTokens, whatsAppMessageUrl, type WhatsAppTemplate } from '@/lib/messaging/templates';
+import { DateInput, TimeInput } from '@/components/ui/DateTimeInputs';
+import { formatDateStr } from '@/lib/dates';
 
 export function WhatsAppComposer({ templates, customer, business, reviewLink, phone, canEditTemplates }: {
   templates: WhatsAppTemplate[]; customer: string; business: string; reviewLink: string | null;
@@ -11,9 +13,12 @@ export function WhatsAppComposer({ templates, customer, business, reviewLink, ph
   const [selected, setSelected] = useState(templates[0].id);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [copyStatus, setCopyStatus] = useState('');
+  const [appointmentDate, setAppointmentDate] = useState('');
+  const [appointmentTime, setAppointmentTime] = useState('');
   const messageRef = useRef<HTMLTextAreaElement>(null);
   const template = templates.find((item) => item.id === selected)!;
-  const message = drafts[selected] ?? renderTemplate(template.body, { customer, business, reviewLink });
+  const rawMessage = drafts[selected] ?? renderTemplate(template.body, { customer, business, reviewLink });
+  const message = rawMessage.replace(/\[date\]/g, appointmentDate ? formatDateStr(appointmentDate, { day: 'numeric', month: 'long', year: 'numeric' }) : '[date]').replace(/\[time\]/g, appointmentTime || '[time]');
   const missing = unresolvedTokens(message);
   const ready = !!message.trim() && missing.length === 0;
   const href = whatsAppMessageUrl(phone, message);
@@ -39,6 +44,12 @@ export function WhatsAppComposer({ templates, customer, business, reviewLink, ph
         {templates.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
       </select>
     </label>
+    {(rawMessage.includes('[date]') || rawMessage.includes('[time]')) && <div className="mb-3 grid gap-3 sm:grid-cols-2">
+      {rawMessage.includes('[date]') && <label className="text-sm text-slate-300">Appointment date
+        <DateInput value={appointmentDate} onChange={(event) => { setAppointmentDate(event.target.value); setCopyStatus(''); }} className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950 p-2.5" />
+      </label>}
+      {rawMessage.includes('[time]') && <TimeInput label="Appointment time" name="messageTime" value={appointmentTime} onChange={(time) => { setAppointmentTime(time); setCopyStatus(''); }} />}
+    </div>}
     <label className="block text-sm text-slate-300">Message to {customer.trim() || 'customer'}
       <textarea ref={messageRef} value={message} onChange={(event) => { setDrafts({ ...drafts, [selected]: event.target.value }); setCopyStatus(''); }} rows={7} maxLength={4000} className="mt-1 block w-full rounded-lg border border-slate-700 bg-slate-950 p-3" />
     </label>

@@ -38,7 +38,7 @@ export function AppChrome({
   const pathname = usePathname();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100">
+    <div className="flex h-dvh overflow-hidden bg-slate-950 text-slate-100">
       {isMobileOpen && (
         <div className="fixed inset-0 z-40 bg-black/60 md:hidden" onClick={() => setIsMobileOpen(false)} aria-hidden="true" />
       )}

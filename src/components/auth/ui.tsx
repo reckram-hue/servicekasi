@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
+import { DateInput } from '@/components/ui/DateTimeInputs';
 
 export function AuthCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
@@ -40,12 +41,12 @@ export function Field({
     <label className="block mb-4">
       <span className="block text-sm font-medium text-slate-300 mb-1">{label}</span>
       <div className="relative">
-        <input
+        {type === 'date' ? <DateInput name={name} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 focus:border-amber-400 focus:outline-none" {...rest} /> : <input
           name={name}
           type={displayType}
           className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 placeholder-slate-500 focus:border-amber-400 focus:outline-none focus:ring-1 focus:ring-amber-400"
           {...rest}
-        />
+        />}
         {isPasswordField && (
           <button
             type="button"

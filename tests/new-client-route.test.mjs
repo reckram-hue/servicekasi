@@ -8,7 +8,8 @@ const React = require('react');
 const jsx = require('react/jsx-runtime');
 const Link = require('next/link');
 const { renderToStaticMarkup } = require('react-dom/server');
-const ui = load('src/components/auth/ui.tsx', { react: React, 'react/jsx-runtime': jsx, 'lucide-react': require('lucide-react') });
+const dateInputs = load('src/components/ui/DateTimeInputs.tsx', { react: React, 'react/jsx-runtime': jsx });
+const ui = load('src/components/auth/ui.tsx', { react: React, 'react/jsx-runtime': jsx, 'lucide-react': require('lucide-react'), '@/components/ui/DateTimeInputs': dateInputs });
 const fields = load('src/components/clients/ClientFormFields.tsx', { 'react/jsx-runtime': jsx, '@/components/auth/ui': ui });
 const sourceAction = async () => {};
 

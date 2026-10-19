@@ -67,7 +67,7 @@ export function BusinessSettingsForm({
           defaultValue={tenant.companyRegNumber ?? ''}
           errors={e?.companyRegNumber}
         />
-        <div className="grid grid-cols-2 gap-x-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
           <Field label="Phone" name="phone" type="tel" defaultValue={tenant.phone ?? ''} errors={e?.phone} />
           <Field label="Email" name="email" type="email" defaultValue={tenant.email ?? ''} errors={e?.email} />
         </div>
@@ -76,7 +76,7 @@ export function BusinessSettingsForm({
       <Section title="Address">
         <Field label="Address line 1" name="addressLine1" defaultValue={tenant.addressLine1 ?? ''} errors={e?.addressLine1} />
         <Field label="Address line 2" name="addressLine2" defaultValue={tenant.addressLine2 ?? ''} errors={e?.addressLine2} />
-        <div className="grid grid-cols-3 gap-x-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-3">
           <Field label="City" name="city" defaultValue={tenant.city ?? ''} errors={e?.city} />
           <Field label="Province" name="region" defaultValue={tenant.region ?? ''} errors={e?.region} />
           <Field label="Postal code" name="postalCode" defaultValue={tenant.postalCode ?? ''} errors={e?.postalCode} />
@@ -129,7 +129,7 @@ export function BusinessSettingsForm({
           defaultValue={tenant.bankAccountHolder ?? ''}
           errors={e?.bankAccountHolder}
         />
-        <div className="grid grid-cols-2 gap-x-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
           <Field
             label="Account number"
             name="bankAccountNumber"
@@ -183,7 +183,7 @@ export function BusinessSettingsForm({
           </p>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-x-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
               <Field
                 label="Number prefix"
                 name="invoicePrefix"

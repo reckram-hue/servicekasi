@@ -1,6 +1,5 @@
 import 'server-only';
-import type { Tenant } from '@prisma/client';
-import type { TenantDb } from '@/lib/db';
+import type { Client, Prisma, Tenant } from '@prisma/client';
 import { normalizeSaPhone } from '@/lib/southAfrica';
 import type { ClientInput } from './schema';
 
@@ -14,7 +13,9 @@ export function hasAddress(d: { street?: string; city?: string }) {
   return !!(d.street && d.city);
 }
 
-export async function createClient(db: TenantDb, tenant: Pick<Tenant, 'id' | 'countryCode'>, d: ClientInput) {
+type ClientWriter = { client: { create(args: { data: Prisma.ClientUncheckedCreateInput }): PromiseLike<Client> } };
+
+export async function createClient(db: ClientWriter, tenant: Pick<Tenant, 'id' | 'countryCode'>, d: ClientInput) {
   return db.client.create({
     data: {
       tenantId: tenant.id, // tenantDb also injects this; kept explicit to satisfy TypeScript

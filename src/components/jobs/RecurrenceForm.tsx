@@ -7,6 +7,7 @@ import { publicHolidayName } from '@/lib/holidays';
 import { addDaysToDateStr, formatDateStr } from '@/lib/dates';
 import { FormMessage, SubmitButton } from '@/components/auth/ui';
 import { TechnicianPicker } from '@/components/jobs/TechnicianPicker';
+import { DateInput, TimeInput } from '@/components/ui/DateTimeInputs';
 
 const INPUT = 'w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-slate-100 focus:border-amber-400 focus:outline-none';
 const PATTERNS: RecurrencePattern[] = ['WEEKLY', 'FORTNIGHTLY', 'MONTHLY_DATE', 'MONTHLY_WEEKDAY'];
@@ -51,11 +52,12 @@ export function RecurrenceForm({
       <input type="hidden" name="jobId" value={jobId} />
       <input type="hidden" name="technicianIdsJson" value={JSON.stringify(selected)} />
       <FormMessage error={state?.error} ok={state?.ok} />
+      {state?.fieldErrors && <p role="alert" className="mb-3 text-sm text-red-300">{Object.values(state.fieldErrors).flat().filter(Boolean).join(' ')}</p>}
 
-      <div className="mb-3 grid grid-cols-2 gap-2">
+      <div className="mb-3 grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="mb-1 block text-sm text-slate-300">First visit</span>
-          <input name="firstDate" type="date" value={firstDate} onChange={(e) => setFirstDate(e.target.value)} required className={INPUT} />
+          <DateInput name="firstDate" value={firstDate} onChange={(e) => setFirstDate(e.target.value)} required className={INPUT} />
         </label>
         <label className="block">
           <span className="mb-1 block text-sm text-slate-300">How often</span>
@@ -72,18 +74,12 @@ export function RecurrenceForm({
         </label>
       </div>
 
-      <div className="mb-3 grid grid-cols-3 gap-2">
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-300">Start</span>
-          <input name="startTime" type="time" defaultValue={current?.startTime} required className={INPUT} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm text-slate-300">End</span>
-          <input name="endTime" type="time" defaultValue={current?.endTime} required className={INPUT} />
-        </label>
+      <div className="mb-3 grid gap-3 sm:grid-cols-3">
+        <TimeInput label="Start" name="startTime" defaultValue={current?.startTime} required />
+        <TimeInput label="End" name="endTime" defaultValue={current?.endTime} required />
         <label className="block">
           <span className="mb-1 block text-sm text-slate-300">Last date (optional)</span>
-          <input name="endsOn" type="date" value={endsOn} onChange={(e) => setEndsOn(e.target.value)} className={INPUT} />
+          <DateInput name="endsOn" min={firstDate || undefined} value={endsOn} onChange={(e) => setEndsOn(e.target.value)} className={INPUT} />
         </label>
       </div>
 
